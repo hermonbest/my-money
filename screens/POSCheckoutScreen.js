@@ -21,6 +21,14 @@ export default function POSCheckoutScreen({ navigation, route }) {
   const { selectedStore, userRole } = useStore();
   const { cartItems } = route.params || { cartItems: [] };
   
+  // Debugging: Log userRole
+  useEffect(() => {
+    console.log('🔍 POSCheckoutScreen - userRole:', userRole);
+    if (userRole === null || userRole === undefined) {
+      console.warn('⚠️ userRole is null/undefined in POSCheckoutScreen');
+    }
+  }, [userRole]);
+  
   // Local state for cart items (can be modified)
   const [localCartItems, setLocalCartItems] = useState(cartItems);
   
@@ -82,6 +90,12 @@ export default function POSCheckoutScreen({ navigation, route }) {
       }));
 
       console.log('💰 Processing POS sale...', { total, items: saleItems.length });
+
+      // Debugging: Log userRole being passed
+      console.log('🔍 processSale called with userRole:', userRole);
+      if (userRole === null || userRole === undefined) {
+        console.warn('⚠️ userRole is null/undefined in processSale call');
+      }
 
       // Process sale using offline service
       const result = await offlineDataService.processSale(saleData, saleItems, userRole);

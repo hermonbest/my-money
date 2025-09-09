@@ -8,6 +8,21 @@ export const useStore = () => {
   if (!context) {
     throw new Error('useStore must be used within a StoreProvider');
   }
+  
+  // Debugging: Log context values
+  useEffect(() => {
+    console.log('🔍 useStore context values:', {
+      selectedStore: context.selectedStore?.name,
+      userRole: context.userRole,
+      loading: context.loading
+    });
+    
+    // Only warn if we're not loading and userRole is still null/undefined
+    if (!context.loading && (context.userRole === null || context.userRole === undefined)) {
+      console.warn('⚠️ useStore: userRole is null/undefined after loading completed');
+    }
+  }, [context.selectedStore, context.userRole, context.loading]);
+  
   return context;
 };
 
@@ -22,6 +37,7 @@ export const StoreProvider = ({ children }) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
+        console.log('🔍 StoreContext: No user or user error, setting userRole to null');
         setUserRole(null);
         setStores([]);
         setSelectedStore(null);
@@ -36,9 +52,11 @@ export const StoreProvider = ({ children }) => {
         .single();
 
       if (profileError) {
+        console.error('❌ StoreContext: Error fetching profile:', profileError);
         throw profileError;
       }
 
+      console.log('🔍 StoreContext: Profile loaded:', profile);
       setUserRole(profile.role);
 
       // Load stores based on role
@@ -104,6 +122,7 @@ export const StoreProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    console.log('🔍 StoreContext: Initializing loadUserProfile...');
     loadUserProfile();
     
     // Listen for auth state changes
@@ -123,6 +142,7 @@ export const StoreProvider = ({ children }) => {
     });
 
     return () => {
+      console.log('🔍 StoreContext: Cleaning up subscription...');
       subscription?.unsubscribe();
     };
   }, []);

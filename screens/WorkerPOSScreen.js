@@ -107,7 +107,12 @@ export default function WorkerPOSScreen({ navigation, route }) {
   // Load inventory for the current store
   const loadInventory = useCallback(async (forceRefresh = false) => {
     try {
-      console.log('📦 Loading inventory...', { forceRefresh, store: selectedStore?.name });
+      console.log('📦 Loading inventory...', { forceRefresh, store: selectedStore?.name, userRole });
+      
+      // Debugging: Check if userRole is null
+      if (userRole === null || userRole === undefined) {
+        console.warn('⚠️ userRole is null/undefined in loadInventory - this may cause cache issues');
+      }
       
       if (forceRefresh) {
         setRefreshing(true);
