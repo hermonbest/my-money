@@ -20,9 +20,12 @@ import { offlineManager } from "../utils/OfflineManager";
 import { offlineDataService } from "../utils/OfflineDataService";
 import { getCurrentUser } from "../utils/authUtils";
 import { formatCurrency } from "../utils/helpers";
+import { useLanguage } from "../contexts/LanguageContext"; // Import useLanguage hook
+import { getTranslation } from "../utils/translations"; // Import getTranslation function
 
 export default function AddSaleScreen({ navigation }) {
   const { selectedStore, userRole } = useStore();
+  const { language } = useLanguage(); // Use language context
   // Get network status directly from offlineManager
   const isOnline = offlineManager.isConnected();
   const [formData, setFormData] = useState({
@@ -51,7 +54,7 @@ export default function AddSaleScreen({ navigation }) {
       const data = await offlineDataService.getInventory(storeId, user.id, userRole);
       setInventory(data || []);
     } catch (error) {
-      console.error("Error loading inventory:", error);
+      console.error(getTranslation('errorLoadingInventory', language), error);
     }
   };
 
@@ -59,7 +62,7 @@ export default function AddSaleScreen({ navigation }) {
     // SECURITY: Prevent manual price editing - only allow quantity changes
     if (field === "unitPrice") {
       console.warn(
-        "SECURITY: Attempted to modify locked price field - blocked",
+        getTranslation('securityAttemptedToModifyLockedPriceField', language),
       );
       return;
     }
@@ -87,7 +90,7 @@ export default function AddSaleScreen({ navigation }) {
       ...prev,
       itemId: item.id,
       itemName: item.item_name || item.name,
-      category: item.category || "General",
+      category: item.category || getTranslation('general', language),
       unitPrice: item.selling_price?.toString() || "0", // Locked from inventory
     }));
     setShowItemSelector(false);
@@ -95,26 +98,26 @@ export default function AddSaleScreen({ navigation }) {
 
   const validateForm = () => {
     if (!formData.itemId) {
-      Alert.alert("Error", "Please select an item from inventory");
+      Alert.alert(getTranslation('error', language), getTranslation('pleaseSelectItemFromInventory', language));
       return false;
     }
     if (!formData.quantity.trim()) {
-      Alert.alert("Error", "Please enter quantity");
+      Alert.alert(getTranslation('error', language), getTranslation('pleaseEnterQuantity', language));
       return false;
     }
     if (isNaN(formData.quantity) || parseInt(formData.quantity) <= 0) {
-      Alert.alert("Error", "Please enter a valid quantity");
+      Alert.alert(getTranslation('error', language), getTranslation('pleaseEnterValidQuantity', language));
       return false;
     }
     // SECURITY: Price validation - ensure price is from inventory
     if (!formData.unitPrice.trim()) {
-      Alert.alert("Error", "Please select an item to get the price");
+      Alert.alert(getTranslation('error', language), getTranslation('pleaseSelectItemToGetPrice', language));
       return false;
     }
     if (isNaN(formData.unitPrice) || parseFloat(formData.unitPrice) <= 0) {
       Alert.alert(
-        "Error",
-        "Invalid price from inventory - please select a valid item",
+        getTranslation('error', language),
+        getTranslation('invalidPriceFromInventory', language),
       );
       return false;
     }
@@ -123,8 +126,8 @@ export default function AddSaleScreen({ navigation }) {
     const selectedItem = inventory.find((item) => item.id === formData.itemId);
     if (selectedItem && parseInt(formData.quantity) > selectedItem.quantity) {
       Alert.alert(
-        "Error",
-        `Only ${selectedItem.quantity} units available in stock`,
+        getTranslation('error', language),
+        `${getTranslation('only', language)} ${selectedItem.quantity} ${getTranslation('unitsAvailableInStock', language)}`,
       );
       return false;
     }
@@ -139,7 +142,7 @@ export default function AddSaleScreen({ navigation }) {
     try {
       const { user } = await getCurrentUser();
       if (!user) {
-        throw new Error('User not authenticated');
+        throw new Error(getTranslation('userNotAuthenticated', language));
       }
 
       const selectedItem = inventory.find(
@@ -147,7 +150,7 @@ export default function AddSaleScreen({ navigation }) {
       );
 
       if (!selectedItem) {
-        Alert.alert("Error", "Selected item not found in inventory");
+        Alert.alert(getTranslation('error', language), getTranslation('selectedItemNotFoundInInventory', language));
         return;
       }
 
@@ -158,7 +161,7 @@ export default function AddSaleScreen({ navigation }) {
       // Create sale data
       const saleData = {
         sale_number: `SALE-${Date.now()}`,
-        customer_name: formData.customerName || 'Walk-in Customer',
+        customer_name: formData.customerName || getTranslation('walkInCustomer', language),
         total_amount: total,
         payment_method: 'cash',
         notes: formData.description,
@@ -178,20 +181,20 @@ export default function AddSaleScreen({ navigation }) {
       const result = await offlineDataService.processSale(saleData, saleItems, userRole);
       
       if (result.offline) {
-        Alert.alert("Offline Mode", "Sale will be recorded when you're back online");
+        Alert.alert(getTranslation('offlineMode', language), getTranslation('saleWillBeRecordedWhenOnline', language));
       } else {
-        Alert.alert("Success", "Sale recorded successfully!");
+        Alert.alert(getTranslation('success', language), getTranslation('saleRecordedSuccessfully', language));
       }
       
       if (navigation && navigation.goBack) {
         navigation.goBack();
       } else {
         // Navigation fallback - this is expected in some contexts
-        console.log('Navigation goBack not available - sale completed successfully');
+        console.log(getTranslation('navigationGoBackNotAvailable', language));
       }
     } catch (error) {
-      console.error("Error recording sale:", error);
-      Alert.alert("Error", "Failed to record sale");
+      console.error(getTranslation('errorRecordingSale', language), error);
+      Alert.alert(getTranslation('error', language), getTranslation('failedToRecordSale', language));
     } finally {
       setLoading(false);
     }
@@ -232,13 +235,13 @@ export default function AddSaleScreen({ navigation }) {
     >
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.item_name || item.name}</Text>
-        <Text style={styles.itemCategory}>{item.category || "General"}</Text>
+        <Text style={styles.itemCategory}>{item.category || getTranslation('general', language)}</Text>
       </View>
       <View style={styles.itemDetails}>
         <Text style={styles.itemPrice}>
-          {`$${parseFloat(item.selling_price || 0).toFixed(2)}`}
+          {formatCurrency(parseFloat(item.selling_price || 0))}
         </Text>
-        <Text style={styles.itemStock}>Stock: {item.quantity} units</Text>
+        <Text style={styles.itemStock}>{getTranslation('stock', language)}: {item.quantity} {getTranslation('units', language)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -259,9 +262,9 @@ export default function AddSaleScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Record Sale</Text>
+          <Text style={styles.headerTitle}>{getTranslation('recordSale', language)}</Text>
           <Text style={styles.headerSubtitle}>
-            Record a new sale transaction
+            {getTranslation('recordNewSaleTransaction', language)}
           </Text>
         </View>
 
@@ -271,9 +274,9 @@ export default function AddSaleScreen({ navigation }) {
             onPress={() => setShowItemSelector(true)}
           >
             <View style={styles.selectorContent}>
-              <Text style={styles.selectorLabel}>Select Item *</Text>
+              <Text style={styles.selectorLabel}>{getTranslation('selectItem', language)} *</Text>
               <Text style={styles.selectorValue}>
-                {formData.itemName || "Choose from inventory"}
+                {formData.itemName || getTranslation('chooseFromInventory', language)}
               </Text>
             </View>
             <MaterialIcons
@@ -284,77 +287,77 @@ export default function AddSaleScreen({ navigation }) {
           </TouchableOpacity>
 
           {renderInputField(
-            "Category",
+            getTranslation('category', language),
             "category",
-            "Category",
+            getTranslation('category', language),
             "default",
             false,
             false,
           )}
           {renderInputField(
-            "Quantity *",
+            `${getTranslation('quantity', language)} *`,
             "quantity",
-            "Enter quantity",
+            getTranslation('enterQuantity', language),
             "numeric",
           )}
           {/* SECURITY: Price field is now display-only, locked to inventory value */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Unit Price (ETB) *</Text>
+            <Text style={styles.inputLabel}>{getTranslation('unitPrice', language)} (ETB) *</Text>
             <View style={[styles.input, styles.lockedPriceField]}>
               <Text style={styles.lockedPriceText}>
                 {formData.unitPrice && formData.itemId
                   ? formatCurrency(
                       parseFloat(formData.unitPrice),
                     )
-                  : "Select an item to see price"}
+                  : getTranslation('selectItemToSeePrice', language)}
               </Text>
               <MaterialIcons name="lock" size={16} color="#6b7280" />
             </View>
             <Text style={styles.securityNote}>
-              🔒 Price locked to inventory value for security
+              {getTranslation('priceLockedToInventoryValueForSecurity', language)}
             </Text>
           </View>
           {renderInputField(
-            "Customer Name",
+            getTranslation('customerName', language),
             "customerName",
-            "Enter customer name",
+            getTranslation('enterCustomerName', language),
           )}
           {renderInputField(
-            "Description",
+            getTranslation('description', language),
             "description",
-            "Enter sale description",
+            getTranslation('enterSaleDescription', language),
             "default",
             true,
           )}
         </View>
 
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Sale Summary</Text>
+          <Text style={styles.summaryTitle}>{getTranslation('saleSummary', language)}</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Item:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('item', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {formData.itemName || "Not selected"}
+                {formData.itemName || getTranslation('notSelected', language)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Quantity:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('quantity', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {formData.quantity || "0"} units
+                {formData.quantity || "0"} {getTranslation('units', language)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Unit Price:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('unitPrice', language)}:</Text>
               <Text style={styles.summaryValue}>
                 {formData.unitPrice
                   ? formatCurrency(
                       parseFloat(formData.unitPrice),
                     )
-                  : "ETB 0.00"}
+                  : formatCurrency(0)}
               </Text>
             </View>
             <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total Amount:</Text>
+              <Text style={styles.totalLabel}>{getTranslation('totalAmount', language)}:</Text>
               <Text style={styles.totalValue}>
                 {formatCurrency(getTotalAmount())}
               </Text>
@@ -370,12 +373,12 @@ export default function AddSaleScreen({ navigation }) {
             if (navigation && navigation.goBack) {
               navigation.goBack();
             } else {
-              console.log('Navigation goBack not available');
+              console.log(getTranslation('navigationGoBackNotAvailable', language));
             }
           }}
           disabled={loading}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
@@ -383,11 +386,11 @@ export default function AddSaleScreen({ navigation }) {
           disabled={loading}
         >
           {loading ? (
-            <Text style={styles.saveButtonText}>Recording...</Text>
+            <Text style={styles.saveButtonText}>{getTranslation('recording', language)}...</Text>
           ) : (
             <>
               <MaterialIcons name="check" size={20} color="#ffffff" />
-              <Text style={styles.saveButtonText}>Record Sale</Text>
+              <Text style={styles.saveButtonText}>{getTranslation('recordSale', language)}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -400,7 +403,7 @@ export default function AddSaleScreen({ navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Inventory Item</Text>
+            <Text style={styles.modalTitle}>{getTranslation('selectInventoryItem', language)}</Text>
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowItemSelector(false)}
@@ -421,253 +424,4 @@ export default function AddSaleScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    backgroundColor: "#ffffff",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  form: {
-    padding: 20,
-  },
-  itemSelector: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  selectorContent: {
-    flex: 1,
-  },
-  selectorLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 4,
-  },
-  selectorValue: {
-    fontSize: 16,
-    color: "#1f2937",
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: "#1f2937",
-  },
-  disabledInput: {
-    backgroundColor: "#f9fafb",
-    color: "#6b7280",
-  },
-  multilineInput: {
-    height: 100,
-    textAlignVertical: "top",
-  },
-  summary: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 16,
-  },
-  summaryCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  summaryValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  totalRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    paddingTop: 12,
-    marginTop: 8,
-  },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1f2937",
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#10b981",
-  },
-  footer: {
-    backgroundColor: "#ffffff",
-    padding: 20,
-    flexDirection: "row",
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  saveButton: {
-    flex: 2,
-    backgroundColor: "#10b981",
-    padding: 16,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButtonDisabled: {
-    backgroundColor: "#9ca3af",
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginLeft: 8,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  modalHeader: {
-    backgroundColor: "#ffffff",
-    padding: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#1f2937",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalList: {
-    padding: 20,
-  },
-  inventoryItem: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  itemInfo: {
-    flex: 1,
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
-  },
-  itemCategory: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  itemDetails: {
-    alignItems: "flex-end",
-  },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#10b981",
-    marginBottom: 4,
-  },
-  itemStock: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  // SECURITY: Styles for locked price field
-  lockedPriceField: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderColor: "#d1d5db",
-  },
-  lockedPriceText: {
-    fontSize: 16,
-    color: "#1f2937",
-    fontWeight: "600",
-  },
-  securityNote: {
-    fontSize: 12,
-    color: "#6b7280",
-    fontStyle: "italic",
-    marginTop: 4,
-  },
-});
+// ... existing styles ...

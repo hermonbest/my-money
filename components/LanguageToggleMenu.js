@@ -60,7 +60,7 @@ export default function LanguageToggleMenu({ visible, onClose }) {
             try {
               await handleLogout();
             } catch (error) {
-              Alert.alert(getTranslation('error', language), error.message);
+              Alert.alert(getTranslation('error', language), error.message || getTranslation('operationFailed', language));
             } finally {
               setIsLoggingOut(false);
               onClose();

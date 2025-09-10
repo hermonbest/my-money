@@ -15,8 +15,11 @@ import { supabase } from '../utils/supabase';
 import { getCurrentUser } from '../utils/authUtils';
 import { offlineManager } from '../utils/OfflineManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function StoreManagementScreen({ navigation }) {
+  const { language } = useLanguage(); // Use language context
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -51,7 +54,7 @@ export default function StoreManagementScreen({ navigation }) {
 
         if (error) {
           console.error('Error loading stores:', error);
-          Alert.alert('Error', 'Failed to load stores');
+          Alert.alert(getTranslation('error', language), getTranslation('failedToLoadStores', language));
           return;
         }
 
@@ -75,7 +78,7 @@ export default function StoreManagementScreen({ navigation }) {
 
     } catch (error) {
       console.error('Error loading stores:', error);
-      Alert.alert('Error', 'Failed to load stores');
+      Alert.alert(getTranslation('error', language), getTranslation('failedToLoadStores', language));
     } finally {
       setLoading(false);
     }
@@ -83,7 +86,7 @@ export default function StoreManagementScreen({ navigation }) {
 
   const handleAddStore = async () => {
     if (!newStore.name.trim()) {
-      Alert.alert('Error', 'Store name is required');
+      Alert.alert(getTranslation('error', language), getTranslation('storeNameRequired', language));
       return;
     }
 
@@ -109,7 +112,7 @@ export default function StoreManagementScreen({ navigation }) {
 
         if (error) {
           console.error('Error creating store:', error);
-          Alert.alert('Error', 'Failed to create store');
+          Alert.alert(getTranslation('error', language), getTranslation('failedToCreateStore', language));
           return;
         }
 
@@ -119,7 +122,7 @@ export default function StoreManagementScreen({ navigation }) {
         await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify([...stores, data]));
         console.log('✅ Updated stores cache');
         
-        Alert.alert('Success', 'Store created successfully');
+        Alert.alert(getTranslation('success', language), getTranslation('storeCreatedSuccessfully', language));
       } else {
         console.log('📱 Offline - creating temporary store');
         // Create temporary store for offline use
@@ -141,7 +144,7 @@ export default function StoreManagementScreen({ navigation }) {
         await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify([...stores, tempStore]));
         console.log('✅ Created temporary store offline');
         
-        Alert.alert('Success', 'Store created offline - will sync when online');
+        Alert.alert(getTranslation('success', language), getTranslation('storeCreatedOffline', language));
       }
 
       setShowAddModal(false);
@@ -155,18 +158,18 @@ export default function StoreManagementScreen({ navigation }) {
 
     } catch (error) {
       console.error('Error creating store:', error);
-      Alert.alert('Error', 'Failed to create store');
+      Alert.alert(getTranslation('error', language), getTranslation('failedToCreateStore', language));
     }
   };
 
   const handleEditStore = (store) => {
     // TODO: Implement edit store functionality
-    Alert.alert('Edit Store', 'Edit functionality will be implemented soon');
+    Alert.alert(getTranslation('editStore', language), getTranslation('editFunctionalityComingSoon', language));
   };
 
   // Invitation flow disabled (direct assignment only)
   const handleInviteWorker = (store) => {
-    Alert.alert('Info', 'Invitations are disabled. Use Direct Assign (green button).');
+    Alert.alert(getTranslation('info', language), getTranslation('invitationsDisabled', language));
   };
 
   const handleViewWorkers = (store) => {
@@ -176,11 +179,11 @@ export default function StoreManagementScreen({ navigation }) {
         navigation.navigate('WorkerInvite', { store });
       } catch (error) {
         console.error('Navigation error:', error);
-        Alert.alert('Error', 'Unable to navigate to worker invite screen');
+        Alert.alert(getTranslation('error', language), getTranslation('unableToNavigateWorkerInvite', language));
       }
     } else {
       console.warn('Navigation not available - this is normal during app startup');
-      Alert.alert('Info', 'Please wait for the app to fully load, then try again');
+      Alert.alert(getTranslation('info', language), getTranslation('pleaseWaitForAppLoad', language));
     }
   };
 
@@ -191,11 +194,11 @@ export default function StoreManagementScreen({ navigation }) {
         navigation.navigate('DirectWorkerAssign', { store });
       } catch (error) {
         console.error('Navigation error:', error);
-        Alert.alert('Error', 'Unable to navigate to direct assignment screen');
+        Alert.alert(getTranslation('error', language), getTranslation('unableToNavigateDirectAssign', language));
       }
     } else {
       console.warn('Navigation not available - this is normal during app startup');
-      Alert.alert('Info', 'Please wait for the app to fully load, then try again');
+      Alert.alert(getTranslation('info', language), getTranslation('pleaseWaitForAppLoad', language));
     }
   };
 
@@ -211,10 +214,10 @@ export default function StoreManagementScreen({ navigation }) {
         <View style={styles.storeDetails}>
           <Text style={styles.storeName}>{item.name}</Text>
           <Text style={styles.storeDescription}>
-            {item.description || 'No description'}
+            {item.description || getTranslation('noDescription', language)}
           </Text>
           <Text style={styles.storeAddress}>
-            {item.address || 'No address'}
+            {item.address || getTranslation('noAddress', language)}
           </Text>
         </View>
       </View>
@@ -248,7 +251,7 @@ export default function StoreManagementScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading stores...</Text>
+        <Text style={styles.loadingText}>{getTranslation('loading', language)} {getTranslation('stores', language).toLowerCase()}...</Text>
       </View>
     );
   }
@@ -256,9 +259,9 @@ export default function StoreManagementScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Store Management</Text>
+        <Text style={styles.title}>{getTranslation('storeManagement', language)}</Text>
         <Text style={styles.subtitle}>
-          Manage your stores and workers
+          {getTranslation('manageStoresAndWorkers', language)}
         </Text>
       </View>
 
@@ -271,9 +274,9 @@ export default function StoreManagementScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="store" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>No stores yet</Text>
+            <Text style={styles.emptyTitle}>{getTranslation('noStoresYet', language)}</Text>
             <Text style={styles.emptyDescription}>
-              Create your first store to get started
+              {getTranslation('createFirstStore', language)}
             </Text>
           </View>
         }
@@ -284,7 +287,7 @@ export default function StoreManagementScreen({ navigation }) {
         onPress={() => setShowAddModal(true)}
       >
         <MaterialIcons name="add" size={24} color="#ffffff" />
-        <Text style={styles.addButtonText}>Add Store</Text>
+        <Text style={styles.addButtonText}>{getTranslation('addStore', language)}</Text>
       </TouchableOpacity>
 
       {/* Add Store Modal */}
@@ -295,7 +298,7 @@ export default function StoreManagementScreen({ navigation }) {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add New Store</Text>
+            <Text style={styles.modalTitle}>{getTranslation('addNewStore', language)}</Text>
             <TouchableOpacity
               onPress={() => setShowAddModal(false)}
               style={styles.closeButton}
@@ -306,23 +309,23 @@ export default function StoreManagementScreen({ navigation }) {
 
           <View style={styles.modalContent}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Store Name *</Text>
+              <Text style={styles.inputLabel}>{getTranslation('storeName', language)} *</Text>
               <TextInput
                 style={styles.input}
                 value={newStore.name}
                 onChangeText={(text) => setNewStore({...newStore, name: text})}
-                placeholder="Enter store name"
+                placeholder={getTranslation('enterStoreName', language)}
                 placeholderTextColor="#9ca3af"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Description</Text>
+              <Text style={styles.inputLabel}>{getTranslation('description', language)}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={newStore.description}
                 onChangeText={(text) => setNewStore({...newStore, description: text})}
-                placeholder="Enter store description"
+                placeholder={getTranslation('enterStoreDescription', language)}
                 placeholderTextColor="#9ca3af"
                 multiline
                 numberOfLines={3}
@@ -330,12 +333,12 @@ export default function StoreManagementScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Address</Text>
+              <Text style={styles.inputLabel}>{getTranslation('address', language)}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={newStore.address}
                 onChangeText={(text) => setNewStore({...newStore, address: text})}
-                placeholder="Enter store address"
+                placeholder={getTranslation('enterStoreAddress', language)}
                 placeholderTextColor="#9ca3af"
                 multiline
                 numberOfLines={2}
@@ -343,24 +346,24 @@ export default function StoreManagementScreen({ navigation }) {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Phone</Text>
+              <Text style={styles.inputLabel}>{getTranslation('phone', language)}</Text>
               <TextInput
                 style={styles.input}
                 value={newStore.phone}
                 onChangeText={(text) => setNewStore({...newStore, phone: text})}
-                placeholder="Enter phone number"
+                placeholder={getTranslation('enterPhoneNumber', language)}
                 placeholderTextColor="#9ca3af"
                 keyboardType="phone-pad"
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={styles.inputLabel}>{getTranslation('email', language)}</Text>
               <TextInput
                 style={styles.input}
                 value={newStore.email}
                 onChangeText={(text) => setNewStore({...newStore, email: text})}
-                placeholder="Enter email address"
+                placeholder={getTranslation('enterEmailAddress', language)}
                 placeholderTextColor="#9ca3af"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -373,14 +376,14 @@ export default function StoreManagementScreen({ navigation }) {
               style={styles.cancelButton}
               onPress={() => setShowAddModal(false)}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.saveButton}
               onPress={handleAddStore}
             >
-              <Text style={styles.saveButtonText}>Create Store</Text>
+              <Text style={styles.saveButtonText}>{getTranslation('createStore', language)}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -389,211 +392,4 @@ export default function StoreManagementScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  header: {
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  listContainer: {
-    padding: 20,
-  },
-  storeItem: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  storeInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  storeIcon: {
-    marginRight: 16,
-    marginTop: 2,
-  },
-  storeDetails: {
-    flex: 1,
-  },
-  storeName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  storeDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  storeAddress: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  storeActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  actionButton: {
-    padding: 8,
-    marginLeft: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2563eb',
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  addButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyDescription: {
-    fontSize: 16,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 60,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    padding: 20,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 16,
-    marginRight: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#6b7280',
-  },
-  saveButton: {
-    flex: 1,
-    padding: 16,
-    marginLeft: 8,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#ffffff',
-  },
-});
+// ... existing styles ...

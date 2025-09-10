@@ -29,12 +29,16 @@ export default function StoreSelector({ visible, onClose, onStoreSelect }) {
         selectedStore?.id === item.id && styles.selectedStoreItem
       ]}
       onPress={() => handleStoreSelect(item)}
+      accessibilityRole="button"
+      accessibilityLabel={`Select store ${item.name}`}
     >
-      <MaterialIcons 
-        name="store" 
-        size={24} 
-        color={selectedStore?.id === item.id ? '#2563eb' : '#6b7280'} 
-      />
+      <View style={[styles.iconContainer, selectedStore?.id === item.id && styles.selectedIconContainer]}>
+        <MaterialIcons 
+          name="store" 
+          size={24} 
+          color={selectedStore?.id === item.id ? "#ffffff" : "#64748b"} 
+        />
+      </View>
       <View style={styles.storeInfo}>
         <Text style={[
           styles.storeName,
@@ -42,12 +46,14 @@ export default function StoreSelector({ visible, onClose, onStoreSelect }) {
         ]}>
           {item.name}
         </Text>
-        <Text style={styles.storeDescription}>
+        <Text style={styles.storeDescription} numberOfLines={1}>
           {item.description || 'No description'}
         </Text>
       </View>
       {selectedStore?.id === item.id && (
-        <MaterialIcons name="check" size={20} color="#2563eb" />
+        <View style={styles.checkContainer}>
+          <MaterialIcons name="check" size={20} color="#2563eb" />
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -56,15 +62,22 @@ export default function StoreSelector({ visible, onClose, onStoreSelect }) {
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
+      accessibilityViewIsModal={true}
+      accessibilityLiveRegion="polite"
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
           <View style={styles.header}>
             <Text style={styles.title}>Select Store</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={24} color="#6b7280" />
+            <TouchableOpacity 
+              onPress={onClose} 
+              style={styles.closeButton}
+              accessibilityLabel="Close store selector"
+              accessibilityRole="button"
+            >
+              <MaterialIcons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>
           
@@ -74,6 +87,7 @@ export default function StoreSelector({ visible, onClose, onStoreSelect }) {
             keyExtractor={(item) => item.id}
             style={styles.storeList}
             showsVerticalScrollIndicator={false}
+            accessibilityLabel="Store list"
           />
         </View>
       </View>
@@ -84,20 +98,22 @@ export default function StoreSelector({ visible, onClose, onStoreSelect }) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   modal: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    width: '90%',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 400,
     maxHeight: '70%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 20,
+    elevation: 12,
   },
   header: {
     flexDirection: 'row',
@@ -105,15 +121,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e2e8f0',
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#1f2937',
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
   },
   storeList: {
     maxHeight: 400,
@@ -123,19 +141,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#f1f5f9',
   },
   selectedStoreItem: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#f0f9ff',
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedIconContainer: {
+    backgroundColor: '#2563eb',
   },
   storeInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 16,
   },
   storeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: '#334155',
     marginBottom: 2,
   },
   selectedStoreName: {
@@ -143,6 +172,14 @@ const styles = StyleSheet.create({
   },
   storeDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
+  },
+  checkContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -22,10 +22,10 @@ import { getCurrentUser } from '../utils/authUtils';
 import { getTranslation } from '../utils/translations';
 import { 
   TIME_FILTERS, 
+  TIME_FILTER_LABELS, 
   getDateRange, 
   getDateRangeDescription,
   getTimeFilterOptions,
-  getTimeFilterLabels,
   formatCurrency,
   formatNumber
 } from '../utils/timeFilters';
@@ -134,6 +134,19 @@ export default function UnifiedDashboardScreen({ navigation }) {
   };
 
   // Clear failed sync items function
+  const handleClearFailedSync = async () => {
+    try {
+      const success = await clearFailedSyncItems();
+      if (success) {
+        Alert.alert('Success', 'Failed sync items cleared successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to clear sync items');
+      }
+    } catch (error) {
+      console.error('Error clearing sync items:', error);
+      Alert.alert('Error', 'Failed to clear sync items');
+    }
+  };
 
   // Logout function is now handled by AuthContext
 
@@ -201,7 +214,7 @@ export default function UnifiedDashboardScreen({ navigation }) {
       const { startDate, endDate } = getDateRange(timeFilter);
       
       // Build queries with time filtering
-      let salesQuery = supabase.from('sales').select('*, sale_items(*, inventory:inventory_id(*))').eq('store_id', storeId);
+      let salesQuery = supabase.from('sales').select('total_amount, created_at').eq('store_id', storeId);
       let expensesQuery = supabase.from('expenses').select('amount, expense_date').eq('store_id', storeId);
       
       // Apply date filtering if not "all time"
@@ -217,440 +230,375 @@ export default function UnifiedDashboardScreen({ navigation }) {
         supabase.from('inventory').select('name, quantity, cost_price').eq('store_id', storeId)
       ]);
 
-      // Log any errors for debugging
-      if (salesData.error) {
-        console.error('Error loading sales data:', salesData.error);
-      }
-      if (expensesData.error) {
-        console.error('Error loading expenses data:', expensesData.error);
-      }
-      if (inventoryData.error) {
-        console.error('Error loading inventory data:', inventoryData.error);
-      }
-
-      // Calculate net profit from sales data
-      let totalNetProfit = 0;
-      if (salesData.data) {
-        salesData.data.forEach(sale => {
-          if (sale.sale_items) {
-            sale.sale_items.forEach(item => {
-              if (item.unit_price && item.quantity) {
-                // Handle cases where inventory data might be missing
-                const costPrice = (item.inventory && item.inventory.cost_price) || 0;
-                const sellingPrice = item.unit_price;
-                const quantity = item.quantity;
-                totalNetProfit += (sellingPrice - costPrice) * quantity;
-              }
-            });
-          }
-        });
-      }
-
       const totalRevenue = salesData.data?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
       const totalExpenses = expensesData.data?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
-      const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * (item.cost_price || 0)), 0) || 0;
+      const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * item.cost_price), 0) || 0;
 
       setFinancialSummary({
         totalRevenue,
         totalExpenses,
         profitLoss: totalRevenue - totalExpenses,
-        netProfit: totalNetProfit,
         inventoryValue,
         inventoryCount: inventoryData.data?.length || 0,
         timeFilter: getDateRangeDescription(timeFilter)
       });
 
-      // Extract top products from sales data instead of making a separate query
-      extractTopProductsFromSalesData(salesData.data);
-
-      // Load additional data with time filtering (excluding top products since we already have them)
-      await loadAdditionalData(storeId, false, false, startDate, endDate, false); // Pass false to indicate we don't need top products
+      // Load additional data with time filtering
+      await loadAdditionalData(storeId, startDate, endDate);
     } catch (error) {
       console.error('Error loading store data:', error);
     }
-};
+  };
 
-const loadIndividualData = async (userId) => {
-  try {
-    // Get date range for current time filter
-    const { startDate, endDate } = getDateRange(timeFilter);
-    
-    // Build queries with time filtering
-    let salesQuery = supabase.from('sales').select('*, sale_items(*, inventory:inventory_id(*))').eq('user_id', userId);
-    let expensesQuery = supabase.from('expenses').select('amount, expense_date').eq('user_id', userId);
-    
-    // Apply date filtering if not "all time"
-    if (startDate && endDate) {
-      salesQuery = salesQuery.gte('created_at', startDate).lte('created_at', endDate);
-      expensesQuery = expensesQuery.gte('expense_date', startDate).lte('expense_date', endDate);
-    }
-    
-    // Load individual user data
-    const [salesData, expensesData, inventoryData] = await Promise.all([
-      salesQuery,
-      expensesQuery,
-      supabase.from('inventory').select('name, quantity, cost_price').eq('user_id', userId)
-    ]);
-
-    // Log any errors for debugging
-    if (salesData.error) {
-      console.error('Error loading sales data:', salesData.error);
-    }
-    if (expensesData.error) {
-      console.error('Error loading expenses data:', expensesData.error);
-    }
-    if (inventoryData.error) {
-      console.error('Error loading inventory data:', inventoryData.error);
-    }
-
-    // Calculate net profit from sales data
-    let totalNetProfit = 0;
-    if (salesData.data) {
-      salesData.data.forEach(sale => {
-        if (sale.sale_items) {
-          sale.sale_items.forEach(item => {
-            if (item.unit_price && item.quantity) {
-              // Handle cases where inventory data might be missing
-              const costPrice = (item.inventory && item.inventory.cost_price) || 0;
-              const sellingPrice = item.unit_price;
-              const quantity = item.quantity;
-              totalNetProfit += (sellingPrice - costPrice) * quantity;
-            }
-          });
-        }
-      });
-    }
-
-    const totalRevenue = salesData.data?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
-    const totalExpenses = expensesData.data?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
-    const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * (item.cost_price || 0)), 0) || 0;
-
-    setFinancialSummary({
-      totalRevenue,
-      totalExpenses,
-      profitLoss: totalRevenue - totalExpenses,
-      netProfit: totalNetProfit,
-      inventoryValue,
-      inventoryCount: inventoryData.data?.length || 0,
-      timeFilter: getDateRangeDescription(timeFilter)
-    });
-
-    // Extract top products from sales data instead of making a separate query
-    extractTopProductsFromSalesData(salesData.data);
-
-    // Load additional data with time filtering (excluding top products since we already have them)
-    await loadAdditionalData(userId, true, false, startDate, endDate, false); // Pass false to indicate we don't need top products
-  } catch (error) {
-    console.error('Error loading individual data:', error);
-  }
-};
-
-// New function to extract top products from existing sales data
-const extractTopProductsFromSalesData = (salesData) => {
-  try {
-    if (!salesData || salesData.length === 0) {
-      setTopProducts([]);
-      return;
-    }
-
-    const productMap = new Map();
-    salesData.forEach(sale => {
-      if (sale.sale_items) {
-        sale.sale_items.forEach(item => {
-          const key = item.inventory_id;
-          // Handle cases where inventory data might be missing
-          const itemName = (item.inventory && item.inventory.name) || 'Unknown Product';
-          const costPrice = (item.inventory && item.inventory.cost_price) || 0;
-          const sellingPrice = item.unit_price || 0;
-          const quantity = item.quantity || 0;
-          const netProfit = (sellingPrice - costPrice) * quantity;
-          const revenue = sellingPrice * quantity;
-          
-          if (productMap.has(key)) {
-            const existing = productMap.get(key);
-            existing.total_quantity += quantity;
-            existing.total_revenue += revenue;
-            existing.total_net_profit += netProfit;
-          } else {
-            productMap.set(key, {
-              inventory_id: item.inventory_id,
-              name: itemName,
-              total_quantity: quantity,
-              total_revenue: revenue,
-              total_net_profit: netProfit
-            });
-          }
-        });
+  const loadIndividualData = async (userId) => {
+    try {
+      // Get date range for current time filter
+      const { startDate, endDate } = getDateRange(timeFilter);
+      
+      // Build queries with time filtering
+      let salesQuery = supabase.from('sales').select('total_amount, created_at').eq('user_id', userId);
+      let expensesQuery = supabase.from('expenses').select('amount, expense_date').eq('user_id', userId);
+      
+      // Apply date filtering if not "all time"
+      if (startDate && endDate) {
+        salesQuery = salesQuery.gte('created_at', startDate).lte('created_at', endDate);
+        expensesQuery = expensesQuery.gte('expense_date', startDate).lte('expense_date', endDate);
       }
-    });
-
-    const topProducts = Array.from(productMap.values())
-      .sort((a, b) => b.total_net_profit - a.total_net_profit) // Sort by net profit instead of quantity
-      .slice(0, 5);
-    
-    setTopProducts(topProducts);
-    console.log('Top products extracted from sales data:', topProducts);
-  } catch (error) {
-    console.error('Error extracting top products from sales data:', error);
-    setTopProducts([]);
-  }
-};
-
-const loadStoreComparisonData = async (userId) => {
-  try {
-    // Check if online
-    if (!offlineManager.isConnected()) {
-      console.log('📱 Offline - skipping store comparison data');
-      setStoreComparisonData([]);
-      return;
-    }
-
-    console.log('🌐 Online - loading store comparison data');
-    // Get stores, sales, and expenses data
-    const { data: stores, error: storesError } = await supabase
-      .from('stores')
-      .select('*')
-      .eq('owner_id', userId);
       
-    if (storesError) {
-      console.error('Error loading stores:', storesError);
-      setStoreComparisonData([]);
-      return;
+      // Load individual user data
+      const [salesData, expensesData, inventoryData] = await Promise.all([
+        salesQuery,
+        expensesQuery,
+        supabase.from('inventory').select('name, quantity, cost_price').eq('user_id', userId)
+      ]);
+
+      const totalRevenue = salesData.data?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
+      const totalExpenses = expensesData.data?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
+      const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * item.cost_price), 0) || 0;
+
+      setFinancialSummary({
+        totalRevenue,
+        totalExpenses,
+        profitLoss: totalRevenue - totalExpenses,
+        inventoryValue,
+        inventoryCount: inventoryData.data?.length || 0,
+        timeFilter: getDateRangeDescription(timeFilter)
+      });
+
+      // Load additional data with time filtering
+      await loadAdditionalData(userId, true, false, startDate, endDate);
+    } catch (error) {
+      console.error('Error loading individual data:', error);
     }
+  };
 
-    const storeIds = stores?.map(s => s.id) || [];
-    
-    const [salesResult, expensesResult] = await Promise.all([
-      supabase.from('sales').select('*').in('store_id', storeIds),
-      supabase.from('expenses').select('*').in('store_id', storeIds)
-    ]);
-      
-    if (salesResult.error) {
-      console.error('Error loading sales:', salesResult.error);
-      setStoreComparisonData([]);
-      return;
-    }
-
-    if (expensesResult.error) {
-      console.error('Error loading expenses:', expensesResult.error);
-      setStoreComparisonData([]);
-      return;
-    }
-
-    const data = getStoreComparisonData(
-      stores || [], 
-      salesResult.data || [], 
-      expensesResult.data || [], 
-      timeFilter
-    );
-    setStoreComparisonData(data);
-  } catch (error) {
-    console.error('Error loading store comparison data:', error);
-    setStoreComparisonData([]);
-  }
-};
-
-const loadExpirationAlerts = async () => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    let inventoryQuery = supabase
-      .from('inventory')
-      .select('id, name, expiration_date, quantity')
-      .not('expiration_date', 'is', null);
-
-    // Apply store filtering based on user role
-    if (userRole === 'individual') {
-      inventoryQuery = inventoryQuery.eq('user_id', user.id);
-    } else if (selectedStore) {
-      inventoryQuery = inventoryQuery.eq('store_id', selectedStore.id);
-    }
-
-    const { data: inventoryData, error } = await inventoryQuery;
-    if (error) throw error;
-
-    const expiring = getItemsExpiringSoon(inventoryData || [], 7);
-    const expired = getExpiredItems(inventoryData || []);
-
-    setExpiringItems(expiring);
-    setExpiredItems(expired);
-  } catch (error) {
-    console.error('Error loading expiration alerts:', error);
-    setExpiringItems([]);
-    setExpiredItems([]);
-  }
-};
-
-// Modified loadAdditionalData to optionally skip top products
-const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllStores = false, startDate = null, endDate = null, includeTopProducts = true) => {
-  try {
-    let bestCustomersQuery, lowStockQuery, recentSalesQuery, recentExpensesQuery;
-
-    if (isAllStores) {
-      // For all stores mode, get all store IDs first
-      const { data: userStores } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('owner_id', storeIdOrUserId);
-    
-      const storeIds = userStores?.map(store => store.id) || [];
-    
-      if (storeIds.length === 0) {
-        setBestCustomers([]);
-        setLowStockItems([]);
-        setRecentActivity([]);
+  const loadStoreComparisonData = async (userId) => {
+    try {
+      // Check if online
+      if (!offlineManager.isConnected()) {
+        console.log('📱 Offline - skipping store comparison data');
+        setStoreComparisonData([]);
         return;
       }
 
-      // Load best customers for all stores
-      bestCustomersQuery = supabase
-        .from('sales')
-        .select(`
-          customer_name,
-          customer_email,
-          total_amount
-        `)
-        .in('store_id', storeIds)
-        .not('customer_name', 'is', null)
-        .limit(50);
-
-      // Load low stock items for all stores
-      lowStockQuery = supabase
-        .from('inventory')
-        .select('name, quantity')
-        .in('store_id', storeIds)
-        .lt('quantity', 10);
-
-      // Load recent activity for all stores
-      recentSalesQuery = supabase
-        .from('sales')
-        .select('id, sale_number, total_amount, created_at')
-        .in('store_id', storeIds)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      recentExpensesQuery = supabase
-        .from('expenses')
-        .select('id, title, amount, created_at')
-        .in('store_id', storeIds)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // Apply time filtering to recent activity queries
-      if (startDate && endDate) {
-        recentSalesQuery = recentSalesQuery.gte('created_at', startDate).lte('created_at', endDate);
-        recentExpensesQuery = recentExpensesQuery.gte('created_at', startDate).lte('created_at', endDate);
+      console.log('🌐 Online - loading store comparison data');
+      // Get stores, sales, and expenses data
+      const { data: stores, error: storesError } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('owner_id', userId);
+      
+      if (storesError) {
+        console.error('Error loading stores:', storesError);
+        setStoreComparisonData([]);
+        return;
       }
 
-    } else {
-      // Load best customers for single store
-      bestCustomersQuery = supabase
-        .from('sales')
-        .select(`
-          customer_name,
-          customer_email,
-          total_amount
-        `)
-        .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
-        .not('customer_name', 'is', null)
-        .limit(50);
-
-      // Load low stock items for single store
-      lowStockQuery = supabase
-        .from('inventory')
-        .select('name, quantity')
-        .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
-        .lt('quantity', 10);
-
-      // Load recent activity for single store
-      recentSalesQuery = supabase
-        .from('sales')
-        .select('id, sale_number, total_amount, created_at')
-        .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      recentExpensesQuery = supabase
-        .from('expenses')
-        .select('id, title, amount, created_at')
-        .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // Apply time filtering to recent activity queries
-      if (startDate && endDate) {
-        recentSalesQuery = recentSalesQuery.gte('created_at', startDate).lte('created_at', endDate);
-        recentExpensesQuery = recentExpensesQuery.gte('created_at', startDate).lte('created_at', endDate);
+      const storeIds = stores?.map(s => s.id) || [];
+      
+      const [salesResult, expensesResult] = await Promise.all([
+        supabase.from('sales').select('*').in('store_id', storeIds),
+        supabase.from('expenses').select('*').in('store_id', storeIds)
+      ]);
+      
+      if (salesResult.error) {
+        console.error('Error loading sales:', salesResult.error);
+        setStoreComparisonData([]);
+        return;
       }
+
+      if (expensesResult.error) {
+        console.error('Error loading expenses:', expensesResult.error);
+        setStoreComparisonData([]);
+        return;
+      }
+
+      const data = getStoreComparisonData(
+        stores || [], 
+        salesResult.data || [], 
+        expensesResult.data || [], 
+        timeFilter
+      );
+      setStoreComparisonData(data);
+    } catch (error) {
+      console.error('Error loading store comparison data:', error);
+      setStoreComparisonData([]);
     }
+  };
 
-    // Execute queries
-    const [bestCustomersResult, lowStockResult, recentSalesResult, recentExpensesResult] = await Promise.all([
-      bestCustomersQuery,
-      lowStockQuery,
-      recentSalesQuery,
-      recentExpensesQuery
-    ]);
+  const loadExpirationAlerts = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Process best customers data
-    const bestCustomersData = bestCustomersResult?.data;
-    if (bestCustomersData) {
-      const customerMap = new Map();
-      bestCustomersData.forEach(sale => {
-        const key = sale.customer_email || sale.customer_name;
-        if (customerMap.has(key)) {
-          const existing = customerMap.get(key);
-          existing.total_spent += sale.total_amount;
-          existing.total_orders += 1;
-        } else {
-          customerMap.set(key, {
-            customer_name: sale.customer_name,
-            customer_email: sale.customer_email,
-            total_spent: sale.total_amount,
-            total_orders: 1
-          });
+      let inventoryQuery = supabase
+        .from('inventory')
+        .select('id, name, expiration_date, quantity')
+        .not('expiration_date', 'is', null);
+
+      // Apply store filtering based on user role
+      if (userRole === 'individual') {
+        inventoryQuery = inventoryQuery.eq('user_id', user.id);
+      } else if (selectedStore) {
+        inventoryQuery = inventoryQuery.eq('store_id', selectedStore.id);
+      }
+
+      const { data: inventoryData, error } = await inventoryQuery;
+      if (error) throw error;
+
+      const expiring = getItemsExpiringSoon(inventoryData || [], 7);
+      const expired = getExpiredItems(inventoryData || []);
+
+      setExpiringItems(expiring);
+      setExpiredItems(expired);
+    } catch (error) {
+      console.error('Error loading expiration alerts:', error);
+      setExpiringItems([]);
+      setExpiredItems([]);
+    }
+  };
+
+  const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllStores = false, startDate = null, endDate = null) => {
+    try {
+      let topProductsQuery, bestCustomersQuery, lowStockQuery, recentSalesQuery, recentExpensesQuery;
+
+      if (isAllStores) {
+        // For all stores mode, get all store IDs first
+        const { data: userStores } = await supabase
+          .from('stores')
+          .select('id')
+          .eq('owner_id', storeIdOrUserId);
+        
+        const storeIds = userStores?.map(store => store.id) || [];
+        
+        if (storeIds.length === 0) {
+          setTopProducts([]);
+          setBestCustomers([]);
+          setLowStockItems([]);
+          setRecentActivity([]);
+          return;
         }
-      });
-      const bestCustomers = Array.from(customerMap.values())
-        .sort((a, b) => b.total_spent - a.total_spent)
-        .slice(0, 5);
-      setBestCustomers(bestCustomers);
-    } else {
-      setBestCustomers([]);
+
+        // Load top products for all stores
+        topProductsQuery = supabase
+          .from('sale_items')
+          .select(`
+            inventory_id,
+            inventory:inventory_id(name),
+            quantity,
+            unit_price
+          `)
+          .in('sale.store_id', storeIds)
+          .limit(50);
+
+        // Load best customers for all stores
+        bestCustomersQuery = supabase
+          .from('sales')
+          .select(`
+            customer_name,
+            customer_email,
+            total_amount
+          `)
+          .in('store_id', storeIds)
+          .not('customer_name', 'is', null)
+          .limit(50);
+
+        // Load low stock items for all stores
+        lowStockQuery = supabase
+          .from('inventory')
+          .select('name, quantity')
+          .in('store_id', storeIds)
+          .lt('quantity', 10);
+
+        // Load recent activity for all stores
+        recentSalesQuery = supabase
+          .from('sales')
+          .select('id, sale_number, total_amount, created_at')
+          .in('store_id', storeIds)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        recentExpensesQuery = supabase
+          .from('expenses')
+          .select('id, title, amount, created_at')
+          .in('store_id', storeIds)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // Apply time filtering to recent activity queries
+        if (startDate && endDate) {
+          recentSalesQuery = recentSalesQuery.gte('created_at', startDate).lte('created_at', endDate);
+          recentExpensesQuery = recentExpensesQuery.gte('created_at', startDate).lte('created_at', endDate);
+        }
+
+      } else {
+        // Original logic for single store or individual
+        topProductsQuery = supabase
+          .from('sale_items')
+          .select(`
+            inventory_id,
+            inventory:inventory_id(name),
+            quantity,
+            unit_price
+          `)
+          .eq(isIndividual ? 'sale.user_id' : 'sale.store_id', storeIdOrUserId)
+          .limit(50);
+
+        // Load best customers for single store
+        bestCustomersQuery = supabase
+          .from('sales')
+          .select(`
+            customer_name,
+            customer_email,
+            total_amount
+          `)
+          .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
+          .not('customer_name', 'is', null)
+          .limit(50);
+
+        // Load low stock items for single store
+        lowStockQuery = supabase
+          .from('inventory')
+          .select('name, quantity')
+          .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
+          .lt('quantity', 10);
+
+        // Load recent activity for single store
+        recentSalesQuery = supabase
+          .from('sales')
+          .select('id, sale_number, total_amount, created_at')
+          .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        recentExpensesQuery = supabase
+          .from('expenses')
+          .select('id, title, amount, created_at')
+          .eq(isIndividual ? 'user_id' : 'store_id', storeIdOrUserId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // Apply time filtering to recent activity queries
+        if (startDate && endDate) {
+          recentSalesQuery = recentSalesQuery.gte('created_at', startDate).lte('created_at', endDate);
+          recentExpensesQuery = recentExpensesQuery.gte('created_at', startDate).lte('created_at', endDate);
+        }
+      }
+
+      // Execute queries
+      const [topProductsResult, bestCustomersResult, lowStockResult, recentSalesResult, recentExpensesResult] = await Promise.all([
+        topProductsQuery,
+        bestCustomersQuery,
+        lowStockQuery,
+        recentSalesQuery,
+        recentExpensesQuery
+      ]);
+
+      // Process top products data
+      const topProductsData = topProductsResult.data;
+      if (topProductsData) {
+        const productMap = new Map();
+        topProductsData.forEach(item => {
+          const key = item.inventory_id;
+          if (productMap.has(key)) {
+            const existing = productMap.get(key);
+            existing.total_quantity += item.quantity;
+            existing.total_revenue += item.quantity * item.unit_price;
+          } else {
+            productMap.set(key, {
+              inventory_id: item.inventory_id,
+              name: item.inventory?.name || 'Unknown Product',
+              total_quantity: item.quantity,
+              total_revenue: item.quantity * item.unit_price
+            });
+          }
+        });
+        const topProducts = Array.from(productMap.values())
+          .sort((a, b) => b.total_quantity - a.total_quantity)
+          .slice(0, 5);
+        setTopProducts(topProducts);
+      } else {
+        setTopProducts([]);
+      }
+
+      // Process best customers data
+      const bestCustomersData = bestCustomersResult.data;
+      if (bestCustomersData) {
+        const customerMap = new Map();
+        bestCustomersData.forEach(sale => {
+          const key = sale.customer_email || sale.customer_name;
+          if (customerMap.has(key)) {
+            const existing = customerMap.get(key);
+            existing.total_spent += sale.total_amount;
+            existing.total_orders += 1;
+          } else {
+            customerMap.set(key, {
+              customer_name: sale.customer_name,
+              customer_email: sale.customer_email,
+              total_spent: sale.total_amount,
+              total_orders: 1
+            });
+          }
+        });
+        const bestCustomers = Array.from(customerMap.values())
+          .sort((a, b) => b.total_spent - a.total_spent)
+          .slice(0, 5);
+        setBestCustomers(bestCustomers);
+      } else {
+        setBestCustomers([]);
+      }
+
+      // Process low stock items
+      const inventoryData = lowStockResult.data;
+      setLowStockItems(inventoryData || []);
+
+      // Process recent activity
+      const recentSales = recentSalesResult.data || [];
+      const recentExpenses = recentExpensesResult.data || [];
+
+      const activity = [
+        ...recentSales.map(s => ({
+          id: `sale-${s.id}`,
+          type: 'sale',
+          description: s.sale_number,
+          amount: s.total_amount,
+          createdAt: s.created_at
+        })),
+        ...recentExpenses.map(e => ({
+          id: `expense-${e.id}`,
+          type: 'expense',
+          description: e.title,
+          amount: e.amount,
+          createdAt: e.created_at
+        }))
+      ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      setRecentActivity(activity.slice(0, 5));
+
+    } catch (error) {
+      console.error('Error loading additional data:', error);
     }
-
-    // Process low stock items
-    const inventoryData = lowStockResult?.data;
-    setLowStockItems(inventoryData || []);
-
-    // Process recent activity
-    const recentSales = recentSalesResult?.data || [];
-    const recentExpenses = recentExpensesResult?.data || [];
-
-    const activity = [
-      ...recentSales.map(s => ({
-        id: `sale-${s.id}`,
-        type: 'sale',
-        description: s.sale_number,
-        amount: s.total_amount,
-        createdAt: s.created_at
-      })),
-      ...recentExpenses.map(e => ({
-        id: `expense-${e.id}`,
-        type: 'expense',
-        description: e.title,
-        amount: e.amount,
-        createdAt: e.created_at
-      }))
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    setRecentActivity(activity.slice(0, 5));
-
-  } catch (error) {
-    console.error('Error loading additional data:', error);
-  }
-};
+  };
 
   const handleStoreSelect = async (store) => {
     selectStore(store);
@@ -677,7 +625,6 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
           totalRevenue: 0,
           totalExpenses: 0,
           profitLoss: 0,
-          netProfit: 0,
           inventoryValue: 0,
           inventoryCount: 0
         });
@@ -688,55 +635,25 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
       // Load aggregated data from all stores
       const [salesData, expensesData, inventoryData] = await Promise.all([
-        supabase.from('sales').select('*, sale_items(*, inventory:inventory_id(*))').in('store_id', storeIds),
+        supabase.from('sales').select('total_amount').in('store_id', storeIds),
         supabase.from('expenses').select('amount').in('store_id', storeIds),
         supabase.from('inventory').select('name, quantity, cost_price').in('store_id', storeIds)
       ]);
 
-      // Log any errors for debugging
-      if (salesData.error) {
-        console.error('Error loading sales data for all stores:', salesData.error);
-      }
-      if (expensesData.error) {
-        console.error('Error loading expenses data for all stores:', expensesData.error);
-      }
-      if (inventoryData.error) {
-        console.error('Error loading inventory data for all stores:', inventoryData.error);
-      }
-
-      // Calculate net profit from sales data
-      let totalNetProfit = 0;
-      if (salesData.data) {
-        salesData.data.forEach(sale => {
-          if (sale.sale_items) {
-            sale.sale_items.forEach(item => {
-              if (item.unit_price && item.quantity) {
-                // Handle cases where inventory data might be missing
-                const costPrice = (item.inventory && item.inventory.cost_price) || 0;
-                const sellingPrice = item.unit_price;
-                const quantity = item.quantity;
-                totalNetProfit += (sellingPrice - costPrice) * quantity;
-              }
-            });
-          }
-        });
-      }
-
       const totalRevenue = salesData.data?.reduce((sum, sale) => sum + (sale.total_amount || 0), 0) || 0;
       const totalExpenses = expensesData.data?.reduce((sum, expense) => sum + (expense.amount || 0), 0) || 0;
-      const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * (item.cost_price || 0)), 0) || 0;
+      const inventoryValue = inventoryData.data?.reduce((sum, item) => sum + (item.quantity * item.cost_price), 0) || 0;
 
       setFinancialSummary({
         totalRevenue,
         totalExpenses,
         profitLoss: totalRevenue - totalExpenses,
-        netProfit: totalNetProfit,
         inventoryValue,
         inventoryCount: inventoryData.data?.length || 0
       });
 
-      // Load additional aggregated data (excluding top products since we already have them)
-      await loadAdditionalData(user.id, false, true, null, null, false); // Pass false to indicate we don't need top products
+      // Load additional aggregated data
+      await loadAdditionalData(user.id, false, true); // Pass true for all stores mode
 
     } catch (error) {
       console.error('Error loading all stores data:', error);
@@ -761,7 +678,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
     return (
       <View style={styles.storeSelector}>
-        <Text style={styles.sectionTitle}>{getTranslation('selectStore', language)}</Text>
+        <Text style={styles.sectionTitle}>Store Selection</Text>
         
         <TouchableOpacity
           style={[styles.storeOption, showAllStores && styles.storeOptionSelected]}
@@ -769,7 +686,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
         >
           <MaterialIcons name="dashboard" size={24} color={showAllStores ? '#2563eb' : '#6b7280'} />
           <Text style={[styles.storeOptionText, showAllStores && styles.storeOptionTextSelected]}>
-            {getTranslation('allStores', language)}
+            All Stores
           </Text>
         </TouchableOpacity>
 
@@ -804,13 +721,13 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
       <View style={styles.card}>
         <MaterialIcons name="trending-up" size={32} color="#10b981" />
         <Text style={styles.cardValue}>{formatCurrency(financialSummary.totalRevenue)}</Text>
-        <Text style={styles.cardLabel}>{getTranslation('totalRevenue', language)}</Text>
+        <Text style={styles.cardLabel}>Revenue</Text>
       </View>
       
       <View style={styles.card}>
         <MaterialIcons name="trending-down" size={32} color="#ef4444" />
         <Text style={styles.cardValue}>{formatCurrency(financialSummary.totalExpenses)}</Text>
-        <Text style={styles.cardLabel}>{getTranslation('totalExpenses', language)}</Text>
+        <Text style={styles.cardLabel}>Expenses</Text>
       </View>
       
       <View style={styles.card}>
@@ -818,30 +735,22 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
         <Text style={[styles.cardValue, { color: (financialSummary.profitLoss || 0) >= 0 ? '#10b981' : '#ef4444' }]}>
           {formatCurrency(financialSummary.profitLoss)}
         </Text>
-        <Text style={styles.cardLabel}>{getTranslation('netProfit', language)}</Text>
+        <Text style={styles.cardLabel}>Profit</Text>
       </View>
       
       <View style={styles.card}>
-        <MaterialIcons name="show-chart" size={32} color="#8b5cf6" />
-        <Text style={[styles.cardValue, { color: (financialSummary.netProfit || 0) >= 0 ? '#10b981' : '#ef4444' }]}>
-          {formatCurrency(financialSummary.netProfit)}
-        </Text>
-        <Text style={styles.cardLabel}>{getTranslation('profit', language)}</Text>
-      </View>
-      
-      <View style={styles.card}>
-        <MaterialIcons name="inventory" size={32} color="#f59e0b" />
+        <MaterialIcons name="inventory" size={32} color="#8b5cf6" />
         <Text style={styles.cardValue}>{formatCurrency(financialSummary.inventoryValue)}</Text>
-        <Text style={styles.cardLabel}>{getTranslation('inventoryValue', language)}</Text>
+        <Text style={styles.cardLabel}>Inventory Value</Text>
       </View>
     </View>
   );
 
   const renderTopProducts = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{getTranslation('topProducts', language)}</Text>
+      <Text style={styles.sectionTitle}>Top Products</Text>
       {topProducts.length === 0 ? (
-        <Text style={styles.noDataText}>{getTranslation('noDataAvailable', language)}</Text>
+        <Text style={styles.noDataText}>No sales data available</Text>
       ) : (
         topProducts.map((product, index) => (
           <View key={product.inventory_id || index} style={styles.listItem}>
@@ -849,9 +758,9 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
               <Text style={styles.rankNumber}>{index + 1}</Text>
             </View>
             <View style={styles.listContent}>
-              <Text style={styles.listTitle}>{product.name || getTranslation('unknownProduct', language)}</Text>
+              <Text style={styles.listTitle}>{product.inventory?.name || 'Unknown Product'}</Text>
               <Text style={styles.listSubtitle}>
-                {product.total_quantity} {getTranslation('units', language)} • {formatCurrency(product.total_revenue)}
+                {product.total_quantity} units • {formatCurrency(product.total_revenue)}
               </Text>
             </View>
           </View>
@@ -862,9 +771,9 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
   const renderBestCustomers = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{getTranslation('bestCustomers', language)}</Text>
+      <Text style={styles.sectionTitle}>Best Customers</Text>
       {bestCustomers.length === 0 ? (
-        <Text style={styles.noDataText}>{getTranslation('noDataAvailable', language)}</Text>
+        <Text style={styles.noDataText}>No customer data available</Text>
       ) : (
         bestCustomers.map((customer, index) => (
           <View key={customer.customer_email || index} style={styles.listItem}>
@@ -872,9 +781,9 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
               <Text style={styles.rankNumber}>{index + 1}</Text>
             </View>
             <View style={styles.listContent}>
-              <Text style={styles.listTitle}>{customer.customer_name || getTranslation('unknownCustomer', language)}</Text>
+              <Text style={styles.listTitle}>{customer.customer_name || 'Unknown Customer'}</Text>
               <Text style={styles.listSubtitle}>
-                {customer.total_orders} {getTranslation('orders', language)} • {formatCurrency(customer.total_spent)}
+                {customer.total_orders} orders • {formatCurrency(customer.total_spent)}
               </Text>
             </View>
           </View>
@@ -885,9 +794,9 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
   const renderLowStockAlerts = () => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{getTranslation('lowStockItems', language)}</Text>
+      <Text style={styles.sectionTitle}>Low Stock Alerts</Text>
       {lowStockItems.length === 0 ? (
-        <Text style={styles.noDataText}>{getTranslation('allItemsWellStocked', language)}</Text>
+        <Text style={styles.noDataText}>All items are well stocked</Text>
       ) : (
         lowStockItems.slice(0, 3).map((item, index) => (
           <View key={index} style={styles.listItem}>
@@ -896,7 +805,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
             </View>
             <View style={styles.listContent}>
               <Text style={styles.listTitle}>{item.name}</Text>
-              <Text style={styles.listSubtitle}>{getTranslation('quantity', language)}: {item.quantity} {getTranslation('units', language)}</Text>
+              <Text style={styles.listSubtitle}>Quantity: {item.quantity} units</Text>
             </View>
           </View>
         ))
@@ -912,14 +821,14 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
     return (
       <View style={styles.section}>
         <View style={styles.chartHeader}>
-          <Text style={styles.sectionTitle}>{getTranslation('storeComparison', language)}</Text>
+          <Text style={styles.sectionTitle}>Store Comparison</Text>
           <View style={styles.chartControls}>
             <TouchableOpacity
               style={[styles.metricButton, chartMetric === 'revenue' && styles.metricButtonActive]}
               onPress={() => setChartMetric('revenue')}
             >
               <Text style={[styles.metricButtonText, chartMetric === 'revenue' && styles.metricButtonTextActive]}>
-                {getTranslation('revenue', language)}
+                Revenue
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -927,7 +836,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
               onPress={() => setChartMetric('profit')}
             >
               <Text style={[styles.metricButtonText, chartMetric === 'profit' && styles.metricButtonTextActive]}>
-                {getTranslation('profit', language)}
+                Profit
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -935,7 +844,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
               onPress={() => setChartMetric('expenses')}
             >
               <Text style={[styles.metricButtonText, chartMetric === 'expenses' && styles.metricButtonTextActive]}>
-                {getTranslation('expenses', language)}
+                Expenses
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -943,7 +852,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
               onPress={() => setChartMetric('profitMargin')}
             >
               <Text style={[styles.metricButtonText, chartMetric === 'profitMargin' && styles.metricButtonTextActive]}>
-                {getTranslation('marginPercentage', language)}
+                Margin %
               </Text>
             </TouchableOpacity>
           </View>
@@ -976,7 +885,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
             color={showCharts ? "#ffffff" : "#2563eb"} 
           />
           <Text style={[styles.chartToggleText, showCharts && styles.chartToggleTextActive]}>
-            {showCharts ? getTranslation('hideCharts', language) : getTranslation('showCharts', language)}
+            {showCharts ? 'Hide Charts' : 'Show Charts'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -994,7 +903,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <MaterialIcons name="warning" size={24} color="#f59e0b" />
-          <Text style={styles.sectionTitle}>{getTranslation('expirationAlerts', language)}</Text>
+          <Text style={styles.sectionTitle}>Expiration Alerts</Text>
           <View style={styles.alertBadge}>
             <Text style={styles.alertBadgeText}>{totalAlerts}</Text>
           </View>
@@ -1002,21 +911,21 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
         {expiredItems.length > 0 && (
           <View style={styles.alertGroup}>
-            <Text style={styles.alertGroupTitle}>{getTranslation('expiredItems', language)} ({expiredItems.length})</Text>
+            <Text style={styles.alertGroupTitle}>Expired Items ({expiredItems.length})</Text>
             {expiredItems.slice(0, 3).map((item, index) => (
               <View key={index} style={styles.alertItem}>
                 <View style={[styles.alertDot, { backgroundColor: '#ef4444' }]} />
                 <View style={styles.alertContent}>
                   <Text style={styles.alertItemName}>{item.name}</Text>
                   <Text style={styles.alertItemDetails}>
-                    {getTranslation('stock', language)}: {item.quantity} • {getTranslation('expired', language)}
+                    Stock: {item.quantity} • Expired
                   </Text>
                 </View>
               </View>
             ))}
             {expiredItems.length > 3 && (
               <Text style={styles.alertMoreText}>
-                +{expiredItems.length - 3} {getTranslation('moreExpiredItems', language)}
+                +{expiredItems.length - 3} more expired items
               </Text>
             )}
           </View>
@@ -1024,21 +933,21 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
 
         {expiringItems.length > 0 && (
           <View style={styles.alertGroup}>
-            <Text style={styles.alertGroupTitle}>{getTranslation('expiringSoon', language)} ({expiringItems.length})</Text>
+            <Text style={styles.alertGroupTitle}>Expiring Soon ({expiringItems.length})</Text>
             {expiringItems.slice(0, 3).map((item, index) => (
               <View key={index} style={styles.alertItem}>
                 <View style={[styles.alertDot, { backgroundColor: '#f59e0b' }]} />
                 <View style={styles.alertContent}>
                   <Text style={styles.alertItemName}>{item.name}</Text>
                   <Text style={styles.alertItemDetails}>
-                    {getTranslation('stock', language)}: {item.quantity} • {getTranslation('expiresIn', language)} {Math.ceil((new Date(item.expiration_date) - new Date()) / (1000 * 60 * 60 * 24))} {getTranslation('days', language)}
+                    Stock: {item.quantity} • Expires in {Math.ceil((new Date(item.expiration_date) - new Date()) / (1000 * 60 * 60 * 24))} days
                   </Text>
                 </View>
               </View>
             ))}
             {expiringItems.length > 3 && (
               <Text style={styles.alertMoreText}>
-                +{expiringItems.length - 3} {getTranslation('moreExpiringItems', language)}
+                +{expiringItems.length - 3} more expiring items
               </Text>
             )}
           </View>
@@ -1051,7 +960,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>{getTranslation('loadingDashboard', language)}</Text>
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
       </View>
     );
   }
@@ -1071,14 +980,14 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
         <View style={styles.timeFilterHeader}>
           <View style={styles.timeFilterTitleContainer}>
             <MaterialIcons name="schedule" size={22} color="#2563eb" />
-            <Text style={styles.timeFilterTitle}>{getTranslation('timePeriod', language)}</Text>
+            <Text style={styles.timeFilterTitle}>Time Period</Text>
           </View>
           <TouchableOpacity 
             style={[styles.timeFilterButton, showTimeFilter && styles.timeFilterButtonActive]}
             onPress={() => setShowTimeFilter(!showTimeFilter)}
           >
             <Text style={[styles.timeFilterText, showTimeFilter && styles.timeFilterTextActive]}>
-              {getTimeFilterLabels(language)[timeFilter]}
+              {TIME_FILTER_LABELS[timeFilter]}
             </Text>
             <MaterialIcons 
               name={showTimeFilter ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
@@ -1091,7 +1000,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
         {showTimeFilter && (
           <View style={styles.timeFilterDropdown}>
             <View style={styles.timeFilterOptions}>
-              {getTimeFilterOptions(language).map((option) => (
+              {getTimeFilterOptions().map((option) => (
                 <TouchableOpacity
                   key={option.value}
                   style={[
@@ -1124,7 +1033,7 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
             </View>
             <View style={styles.timeFilterDescription}>
               <Text style={styles.timeFilterDescriptionText}>
-                {getDateRangeDescription(timeFilter, language)}
+                {getDateRangeDescription(timeFilter)}
               </Text>
             </View>
           </View>
@@ -1137,16 +1046,24 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
       >
         <View style={styles.content}>
           <Text style={styles.subtitle}>
-            {showAllStores ? getTranslation('allStoresOverview', language) : selectedStore?.name || getTranslation('businessOverview', language)}
+            {showAllStores ? 'All Stores Overview' : selectedStore?.name || 'Business Overview'}
           </Text>
           {financialSummary.timeFilter && (
             <Text style={styles.timeFilterDescription}>
-              {getDateRangeDescription(timeFilter, language)}
+              {financialSummary.timeFilter}
             </Text>
           )}
           
           {/* Debug Section - Remove in production */}
-
+          <View style={styles.debugSection}>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={handleClearFailedSync}
+            >
+              <MaterialIcons name="clear-all" size={20} color="#ffffff" />
+              <Text style={styles.debugButtonText}>Clear Failed Sync</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {renderStoreSelector()}
@@ -1157,15 +1074,15 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
         {renderTopProducts()}
         {renderBestCustomers()}
         {renderLowStockAlerts()}
-      </ScrollView>
+              </ScrollView>
         
-      <LanguageToggleMenu
-        visible={showLanguageMenu}
-        onClose={() => setShowLanguageMenu(false)}
-      />
-    </View>
-  )
-}
+        <LanguageToggleMenu
+          visible={showLanguageMenu}
+          onClose={() => setShowLanguageMenu(false)}
+        />
+      </View>
+    );
+  }
 
 const styles = StyleSheet.create({
   container: {
@@ -1179,11 +1096,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   subtitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 24,
-    letterSpacing: 0.3,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -1194,125 +1110,99 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#64748b',
-    fontWeight: '500',
+    color: '#6b7280',
   },
   storeSelector: {
-    marginBottom: 24,
-    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 20,
-    letterSpacing: 0.2,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
   },
   storeOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 8,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    transition: 'all 0.2s ease',
+    borderColor: '#e5e7eb',
   },
   storeOptionSelected: {
-    borderColor: '#3b82f6',
+    borderColor: '#2563eb',
     backgroundColor: '#eff6ff',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   storeOptionText: {
-    marginLeft: 16,
+    marginLeft: 12,
     fontSize: 16,
-    color: '#64748b',
-    fontWeight: '500',
+    color: '#6b7280',
   },
   storeOptionTextSelected: {
-    color: '#3b82f6',
+    color: '#2563eb',
     fontWeight: '600',
   },
   cardsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 20,
   },
   card: {
     width: '48%',
     backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    transition: 'all 0.2s ease',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginTop: 8,
   },
   cardLabel: {
-    fontSize: 15,
-    color: '#64748b',
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
   },
   section: {
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: 24,
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: 12,
     backgroundColor: '#ffffff',
-    marginBottom: 16,
-    borderRadius: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
+    marginBottom: 8,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    transition: 'all 0.2s ease',
+    shadowRadius: 2,
+    elevation: 1,
   },
   rankBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#3b82f6',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   rankNumber: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   listContent: {
     flex: 1,
@@ -1320,133 +1210,121 @@ const styles = StyleSheet.create({
   listTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 6,
+    color: '#374151',
+    marginBottom: 2,
   },
   listSubtitle: {
     fontSize: 14,
-    color: '#64748b',
-    fontWeight: '400',
+    color: '#6b7280',
   },
   stockIndicator: {
-    marginRight: 16,
+    marginRight: 12,
   },
   stockDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   noDataText: {
-    fontSize: 16,
-    color: '#94a3b8',
+    fontSize: 14,
+    color: '#9ca3af',
     textAlign: 'center',
-    paddingVertical: 32,
-    fontStyle: 'italic',
-    fontWeight: '400',
+    padding: 20,
   },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
   },
   actionButton: {
     width: '48%',
     backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 16,
-    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    shadowRadius: 4,
+    elevation: 3,
   },
   actionText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: 8,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
   },
   timeFilterContainer: {
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#e5e7eb',
     paddingHorizontal: 20,
-    paddingVertical: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 16,
   },
   timeFilterHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   timeFilterTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   timeFilterTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginLeft: 10,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginLeft: 8,
   },
   timeFilterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     backgroundColor: '#f8fafc',
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    minWidth: 160,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
+    borderColor: '#e5e7eb',
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowRadius: 2,
     elevation: 1,
-    transition: 'all 0.2s ease',
   },
   timeFilterButtonActive: {
     backgroundColor: '#eff6ff',
-    borderColor: '#3b82f6',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
+    borderColor: '#2563eb',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowRadius: 4,
+    elevation: 2,
   },
   timeFilterText: {
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-    marginRight: 10,
+    marginRight: 8,
   },
   timeFilterTextActive: {
-    color: '#3b82f6',
+    color: '#2563eb',
     fontWeight: '600',
   },
   timeFilterDropdown: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    marginTop: 16,
+    marginTop: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 6,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
     overflow: 'hidden',
   },
   timeFilterOptions: {
@@ -1456,11 +1334,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    transition: 'all 0.2s ease',
+    borderBottomColor: '#f3f4f6',
   },
   timeFilterOptionActive: {
     backgroundColor: '#eff6ff',
@@ -1474,81 +1351,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-    marginLeft: 14,
+    marginLeft: 12,
   },
   timeFilterOptionTextActive: {
-    color: '#3b82f6',
+    color: '#2563eb',
     fontWeight: '600',
   },
   timeFilterDescription: {
     backgroundColor: '#f8fafc',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: '#e5e7eb',
   },
   timeFilterDescriptionText: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#6b7280',
     textAlign: 'center',
     fontStyle: 'italic',
-    fontWeight: '400',
   },
   debugSection: {
-    marginBottom: 24,
+    marginBottom: 20,
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   debugButton: {
     backgroundColor: '#dc2626',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-    transition: 'all 0.2s ease',
+    gap: 8,
   },
   debugButtonText: {
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
   chartToggleContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginBottom: 20,
+    paddingVertical: 8,
   },
   chartToggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     backgroundColor: '#f8fafc',
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#3b82f6',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-    transition: 'all 0.2s ease',
+    borderColor: '#2563eb',
   },
   chartToggleButtonActive: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2563eb',
   },
   chartToggleText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
-    marginLeft: 10,
+    color: '#2563eb',
+    marginLeft: 8,
   },
   chartToggleTextActive: {
     color: '#ffffff',
@@ -1557,103 +1419,89 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   chartControls: {
     flexDirection: 'row',
     backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 4,
   },
   metricButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 10,
-    marginHorizontal: 4,
-    transition: 'all 0.2s ease',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
   },
   metricButtonActive: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2563eb',
   },
   metricButtonText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748b',
+    color: '#6b7280',
   },
   metricButtonTextActive: {
     color: '#ffffff',
-    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   alertBadge: {
     backgroundColor: '#f59e0b',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginLeft: 16,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 8,
   },
   alertBadgeText: {
     color: '#ffffff',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   alertGroup: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   alertGroupTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 16,
+    color: '#374151',
+    marginBottom: 8,
   },
   alertItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    backgroundColor: '#fffbeb',
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#fef3c7',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    marginBottom: 6,
   },
   alertDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 18,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 12,
   },
   alertContent: {
     flex: 1,
   },
   alertItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 4,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 2,
   },
   alertItemDetails: {
-    fontSize: 14,
-    color: '#64748b',
-    fontWeight: '400',
+    fontSize: 12,
+    color: '#6b7280',
   },
   alertMoreText: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 12,
+    color: '#6b7280',
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 12,
-    fontWeight: '400',
+    marginTop: 4,
   },
 });

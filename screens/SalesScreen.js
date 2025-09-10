@@ -133,7 +133,7 @@ export default function SalesScreen({ navigation }) {
 
   const addToCart = (item) => {
     if (item.quantity <= 0) {
-      Alert.alert('Out of Stock', 'This item is currently out of stock.');
+      Alert.alert(getTranslation('outOfStock', language), getTranslation('itemOutOfStock', language));
       return;
     }
 
@@ -145,7 +145,7 @@ export default function SalesScreen({ navigation }) {
       const availableStock = item.quantity - alreadyInCart;
       
       if (availableStock <= 0) {
-        Alert.alert('Insufficient Stock', `Only ${availableStock} units available.`);
+        Alert.alert(getTranslation('insufficientStock', language), `${getTranslation('onlyUnitsAvailable', language)} ${availableStock}.`);
         return;
       }
       
@@ -159,7 +159,7 @@ export default function SalesScreen({ navigation }) {
     } else {
       // Check if there's at least 1 unit available
       if (item.quantity <= 0) {
-        Alert.alert('Insufficient Stock', 'No units available.');
+        Alert.alert(getTranslation('insufficientStock', language), getTranslation('noUnitsAvailable', language));
         return;
       }
       setCart(prev => [...prev, {
@@ -182,14 +182,14 @@ export default function SalesScreen({ navigation }) {
 
     const cartItem = cart.find(cartItem => cartItem.id === itemId);
     if (!cartItem) {
-      Alert.alert('Error', 'Item not found in cart');
+      Alert.alert(getTranslation('error', language), getTranslation('itemNotFoundInCart', language));
       return;
     }
 
     // Find the original inventory item to get total stock
     const inventoryItem = inventory.find(inv => inv.id === itemId);
     if (!inventoryItem) {
-      Alert.alert('Error', 'Item not found in inventory');
+      Alert.alert(getTranslation('error', language), getTranslation('itemNotFoundInInventory', language));
       return;
     }
 
@@ -199,7 +199,7 @@ export default function SalesScreen({ navigation }) {
     const availableStock = inventoryItem.quantity - alreadyInCart;
     
     if (newQuantity > availableStock) {
-      Alert.alert('Insufficient Stock', `Only ${availableStock} units available.`);
+      Alert.alert(getTranslation('insufficientStock', language), `${getTranslation('onlyUnitsAvailable', language)} ${availableStock}.`);
       return;
     }
 
@@ -251,12 +251,12 @@ export default function SalesScreen({ navigation }) {
 
   const handleDeleteSale = async (sale) => {
     Alert.alert(
-      'Delete Sale',
-      `Are you sure you want to delete sale #${sale.sale_number}?\n\nThis will:\n• Restore inventory quantities\n• Remove from revenue calculations\n• This action cannot be undone`,
+      getTranslation('deleteSale', language),
+      `${getTranslation('confirmDeleteSale', language)} #${sale.sale_number}?\n\n${getTranslation('thisWill', language)}:\n• ${getTranslation('restoreInventoryQuantities', language)}\n• ${getTranslation('removeFromRevenue', language)}\n• ${getTranslation('operationCannotBeUndone', language)}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: getTranslation('cancel', language), style: 'cancel' },
         {
-          text: 'Delete',
+          text: getTranslation('delete', language),
           style: 'destructive',
           onPress: () => deleteSale(sale)
         }
@@ -275,7 +275,7 @@ export default function SalesScreen({ navigation }) {
         .eq('sale_id', sale.id);
 
       if (itemsError) {
-        throw new Error(`Failed to fetch sale items: ${itemsError.message}`);
+        throw new Error(`${getTranslation('failedToFetchSaleItems', language)}: ${itemsError.message}`);
       }
 
       console.log('Found sale items to restore:', saleItems);
@@ -294,7 +294,7 @@ export default function SalesScreen({ navigation }) {
               .single();
 
             if (fetchError) {
-              console.error(`Failed to fetch current quantity for ${item.item_name}:`, fetchError);
+              console.error(`${getTranslation('failedToFetchCurrentQuantity', language)} ${item.item_name}:`, fetchError);
               continue;
             }
 
@@ -311,12 +311,12 @@ export default function SalesScreen({ navigation }) {
               .eq('id', item.inventory_id);
 
             if (updateError) {
-              console.error(`Failed to restore inventory for ${item.item_name}:`, updateError);
+              console.error(`${getTranslation('failedToRestoreInventory', language)} ${item.item_name}:`, updateError);
             } else {
-              console.log(`✅ Restored ${item.item_name}: ${currentItem.quantity} -> ${newQuantity} (+${item.quantity})`);
+              console.log(`✅ ${getTranslation('restored', language)} ${item.item_name}: ${currentItem.quantity} -> ${newQuantity} (+${item.quantity})`);
             }
           } catch (itemError) {
-            console.error(`Error restoring item ${item.item_name}:`, itemError);
+            console.error(`${getTranslation('errorRestoringItem', language)} ${item.item_name}:`, itemError);
           }
         }
       }
@@ -328,7 +328,7 @@ export default function SalesScreen({ navigation }) {
         .eq('sale_id', sale.id);
 
       if (deleteItemsError) {
-        throw new Error(`Failed to delete sale items: ${deleteItemsError.message}`);
+        throw new Error(`${getTranslation('failedToDeleteSaleItems', language)}: ${deleteItemsError.message}`);
       }
 
       console.log('Sale items deleted successfully');
@@ -340,7 +340,7 @@ export default function SalesScreen({ navigation }) {
         .eq('id', sale.id);
 
       if (deleteSaleError) {
-        throw new Error(`Failed to delete sale: ${deleteSaleError.message}`);
+        throw new Error(`${getTranslation('failedToDeleteSale', language)}: ${deleteSaleError.message}`);
       }
 
       console.log('Sale deleted successfully');
@@ -349,129 +349,127 @@ export default function SalesScreen({ navigation }) {
       await loadData();
 
       Alert.alert(
-        'Sale Deleted',
-        `Sale #${sale.sale_number} has been deleted successfully.\n\nInventory quantities have been restored.`,
-        [{ text: 'OK' }]
+        getTranslation('saleDeleted', language),
+        `${getTranslation('saleDeletedSuccessfully', language)} #${sale.sale_number}.\n\n${getTranslation('inventoryQuantitiesRestored', language)}.`,
+        [{ text: getTranslation('ok', language) }]
       );
 
     } catch (error) {
       console.error('Error deleting sale:', error);
       Alert.alert(
-        'Delete Failed',
-        `Failed to delete sale: ${error.message}`,
-        [{ text: 'OK' }]
+        getTranslation('deleteFailed', language),
+        `${getTranslation('failedToDeleteSale', language)}: ${error.message}`,
+        [{ text: getTranslation('ok', language) }]
       );
     }
   };
 
-  // ... existing code ...
+  const finalizeSale = async () => {
+    if (cart.length === 0) {
+      Alert.alert(getTranslation('emptyCart', language), getTranslation('addItemToCart', language));
+      return;
+    }
 
-const finalizeSale = async () => {
-  if (cart.length === 0) {
-    Alert.alert('Empty Cart', 'Please add items to cart before completing sale.');
-    return;
-  }
+    if (!paymentMethod) {
+      Alert.alert(getTranslation('validationError', language), getTranslation('selectPaymentMethod', language));
+      return;
+    }
 
-  if (!paymentMethod) {
-    Alert.alert('Validation Error', 'Please select a payment method');
-    return;
-  }
-
-  setCompletingSale(true);
+    setCompletingSale(true);
   
-  try {
-    const subtotal = calculateSubtotal();
-    const grandTotal = calculateTotal();
+    try {
+      const subtotal = calculateSubtotal();
+      const grandTotal = calculateTotal();
 
-    console.log('Starting offline-aware sale completion...', {
-      subtotal,
-      grandTotal,
-      itemCount: cart.length,
-      isOnline
-    });
+      console.log('Starting offline-aware sale completion...', {
+        subtotal,
+        grandTotal,
+        itemCount: cart.length,
+        isOnline
+      });
 
-    // Get user's profile and role using offline-aware method
-    const profile = await getUserProfile(user.id);
+      // Get user's profile and role using offline-aware method
+      const profile = await getUserProfile(user.id);
 
-    if (!profile) {
-      Alert.alert('Error', 'User profile not found');
-      return;
-    }
+      if (!profile) {
+        Alert.alert(getTranslation('error', language), getTranslation('userProfileNotFound', language));
+        return;
+      }
 
-    // Handle different user roles - use selectedStore from context for consistency
-    let storeId = null;
+      // Handle different user roles - use selectedStore from context for consistency
+      let storeId = null;
     
-    if (profile.role === 'owner') {
-      // For owners, use the selectedStore from context, not profile.store_id
-      storeId = selectedStore?.id || null;
-      console.log('🔍 Owner using selectedStore ID:', storeId);
-    } else if (profile.role === 'worker' && profile.store_id) {
-      storeId = profile.store_id;
-    } else if (profile.role === 'individual') {
-      storeId = null;
-    } else {
-      Alert.alert('Error', 'No store associated with your account. Please contact your administrator.');
-      return;
-    }
+      if (profile.role === 'owner') {
+        // For owners, use the selectedStore from context, not profile.store_id
+        storeId = selectedStore?.id || null;
+        console.log('🔍 Owner using selectedStore ID:', storeId);
+      } else if (profile.role === 'worker' && profile.store_id) {
+        storeId = profile.store_id;
+      } else if (profile.role === 'individual') {
+        storeId = null;
+      } else {
+        Alert.alert(getTranslation('error', language), getTranslation('noStoreAssociated', language));
+        return;
+      }
 
-    // Prepare sale data
-    const saleNumber = generateSaleNumber();
-    const saleData = {
-      user_id: user.id,
-      sale_number: saleNumber,
-      customer_name: customerName.trim() || null,
-      customer_email: null,
-      customer_phone: null,
-      subtotal: grandTotal,
-      tax_amount: 0,
-      discount_amount: 0,
-      total_amount: grandTotal,
-      payment_method: paymentMethod,
-      payment_status: 'paid',
-      store_id: storeId,
-    };
+      // Prepare sale data
+      const saleNumber = generateSaleNumber();
+      const saleData = {
+        user_id: user.id,
+        sale_number: saleNumber,
+        customer_name: customerName.trim() || null,
+        customer_email: null,
+        customer_phone: null,
+        subtotal: grandTotal,
+        tax_amount: 0,
+        discount_amount: 0,
+        total_amount: grandTotal,
+        payment_method: paymentMethod,
+        payment_status: 'paid',
+        store_id: storeId,
+      };
 
-    // Prepare sale items
-    const saleItems = cart.map(item => ({
-      inventory_id: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-    }));
+      // Prepare sale items
+      const saleItems = cart.map(item => ({
+        inventory_id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+      }));
 
-    // Use offline data service to process sale
-    const result = await offlineDataService.processSale(saleData, saleItems, profile.role);
+      // Use offline data service to process sale
+      const result = await offlineDataService.processSale(saleData, saleItems, profile.role);
 
-    console.log('Sale completed successfully:', result);
+      console.log('Sale completed successfully:', result);
 
-    // Clear cart and close modal
-    setCart([]);
-    setShowSaleModal(false);
-    setCustomerName('');
-    setPaymentMethod('cash');
+      // Clear cart and close modal
+      setCart([]);
+      setShowSaleModal(false);
+      setCustomerName('');
+      setPaymentMethod('cash');
 
-    // Reload data to show updated sales and inventory
-    await loadData();
+      // Reload data to show updated sales and inventory
+      await loadData();
 
-    // Show success message with offline status
-    const offlineMessage = !isOnline ? '\n\n⚠️ This sale will sync when you\'re back online.' : '';
-    Alert.alert(
-      'Sale Completed Successfully!',
-      `Sale #${result.sale_number || 'Pending'} has been completed.\n\nTotal: ${formatCurrency(result.total_amount)}\nPayment: ${paymentMethods.find(pm => pm.value === paymentMethod)?.label}${offlineMessage}`,
-      [{ text: 'OK' }]
-    );
+      // Show success message with offline status
+      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('saleWillSync', language)}.` : '';
+      Alert.alert(
+        getTranslation('saleCompletedSuccessfully', language),
+        `${getTranslation('sale', language)} #${result.sale_number || getTranslation('pending', language)} ${getTranslation('completedSuccessfully', language)}.\n\n${getTranslation('total', language)}: ${formatCurrency(result.total_amount)}\n${getTranslation('payment', language)}: ${paymentMethods.find(pm => pm.value === paymentMethod)?.label}${offlineMessage}`,
+        [{ text: getTranslation('ok', language) }]
+      );
 
-  } catch (error) {
-    console.error('Error completing sale:', error);
+    } catch (error) {
+      console.error('Error completing sale:', error);
     
-    const offlineMessage = !isOnline ? '\n\n⚠️ You\'re currently offline. The sale will be processed when you\'re back online.' : '';
-    Alert.alert(
-      'Sale Processing',
-      `Sale has been queued for processing.${offlineMessage}\n\nPlease check your sales history to confirm the sale was processed.`
-    );
-  } finally {
-    setCompletingSale(false);
-  }
+      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('currentlyOffline', language)}. ${getTranslation('saleWillProcess', language)}.` : '';
+      Alert.alert(
+        getTranslation('saleProcessing', language),
+        `${getTranslation('saleQueued', language)}.${offlineMessage}\n\n${getTranslation('checkSalesHistory', language)}.`
+      );
+    } finally {
+      setCompletingSale(false);
+    }
 };
 
   // Keep the old function name for backward compatibility
@@ -493,7 +491,7 @@ const finalizeSale = async () => {
           </View>
           <View style={styles.stockInfo}>
             <Text style={[styles.stockText, isOutOfStock && styles.outOfStockText]}>
-              Stock: {item.quantity}
+              {getTranslation('stock', language)}: {item.quantity}
             </Text>
             <Text style={styles.priceText}>{formatCurrency(item.selling_price)}</Text>
           </View>
@@ -529,7 +527,7 @@ const finalizeSale = async () => {
             >
               <MaterialIcons name="add-shopping-cart" size={20} color="#ffffff" />
               <Text style={styles.addButtonText}>
-                {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                {isOutOfStock ? getTranslation('outOfStock', language) : getTranslation('addToCart', language)}
               </Text>
             </TouchableOpacity>
           )}
@@ -669,7 +667,7 @@ const finalizeSale = async () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading sales data...</Text>
+        <Text style={styles.loadingText}>{getTranslation('loading', language)} {getTranslation('sales', language).toLowerCase()} {getTranslation('data', language).toLowerCase()}...</Text>
       </View>
     );
   }
@@ -678,11 +676,11 @@ const finalizeSale = async () => {
     return (
       <View style={styles.errorContainer}>
         <MaterialIcons name="error-outline" size={64} color="#ef4444" />
-        <Text style={styles.errorTitle}>Error Loading Data</Text>
+        <Text style={styles.errorTitle}>{getTranslation('error', language)} {getTranslation('loading', language)} {getTranslation('data', language)}</Text>
         <Text style={styles.errorMessage}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadData}>
           <MaterialIcons name="refresh" size={20} color="#ffffff" />
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{getTranslation('retry', language)}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -707,7 +705,7 @@ const finalizeSale = async () => {
           {!isOnline && (
             <View style={styles.offlineIndicator}>
               <MaterialIcons name="wifi-off" size={16} color="#ef4444" />
-              <Text style={styles.offlineText}>Offline Mode</Text>
+              <Text style={styles.offlineText}>{getTranslation('offlineMode', language)}</Text>
             </View>
           )}
         </View>
@@ -718,7 +716,7 @@ const finalizeSale = async () => {
               onPress={() => setShowSaleModal(true)}
             >
               <MaterialIcons name="shopping-cart" size={20} color="#ffffff" />
-              <Text style={styles.cartButtonText}>Cart ({cart.length})</Text>
+              <Text style={styles.cartButtonText}>{getTranslation('cart', language)} ({cart.length})</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -730,7 +728,7 @@ const finalizeSale = async () => {
           onPress={() => setActiveTab('inventory')}
         >
           <Text style={[styles.tabText, activeTab === 'inventory' && styles.activeTabText]}>
-            Inventory
+            {getTranslation('inventory', language)}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
@@ -738,7 +736,7 @@ const finalizeSale = async () => {
           onPress={() => setActiveTab('history')}
         >
           <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>
-            Sales History
+            {getTranslation('salesHistory', language)}
           </Text>
         </TouchableOpacity>
       </View>
@@ -748,7 +746,7 @@ const finalizeSale = async () => {
         <MaterialIcons name="search" size={20} color="#6b7280" />
         <TextInput
           style={styles.searchInput}
-          placeholder={activeTab === 'inventory' ? 'Search inventory by name, category...' : 'Search sales by number, customer, items...'}
+          placeholder={activeTab === 'inventory' ? getTranslation('searchInventory', language) : getTranslation('searchSales', language)}
           value={activeTab === 'inventory' ? inventorySearchQuery : salesSearchQuery}
           onChangeText={activeTab === 'inventory' ? setInventorySearchQuery : setSalesSearchQuery}
         />
@@ -776,10 +774,10 @@ const finalizeSale = async () => {
             <View style={styles.emptyState}>
               <MaterialIcons name="inventory-2" size={64} color="#9ca3af" />
               <Text style={styles.emptyTitle}>
-                {inventorySearchQuery ? 'No items match your search' : 'No Inventory Items'}
+                {inventorySearchQuery ? getTranslation('noItemsMatchSearch', language) : getTranslation('noInventoryItems', language)}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {inventorySearchQuery ? 'Try adjusting your search terms' : 'Add inventory items to start selling'}
+                {inventorySearchQuery ? getTranslation('adjustSearchTerms', language) : getTranslation('addInventoryItems', language)}
               </Text>
             </View>
           )}
@@ -798,10 +796,10 @@ const finalizeSale = async () => {
             <View style={styles.emptyState}>
               <MaterialIcons name="receipt" size={64} color="#9ca3af" />
               <Text style={styles.emptyTitle}>
-                {salesSearchQuery ? 'No sales match your search' : 'No Sales Recorded'}
+                {salesSearchQuery ? getTranslation('noSalesMatchSearch', language) : getTranslation('noSalesRecorded', language)}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {salesSearchQuery ? 'Try adjusting your search terms' : 'Complete your first sale to see it here'}
+                {salesSearchQuery ? getTranslation('adjustSearchTerms', language) : getTranslation('completeFirstSale', language)}
               </Text>
             </View>
           )}
@@ -819,7 +817,7 @@ const finalizeSale = async () => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Complete Sale</Text>
+            <Text style={styles.modalTitle}>{getTranslation('completeSale', language)}</Text>
             <TouchableOpacity onPress={() => setShowSaleModal(false)}>
               <MaterialIcons name="close" size={24} color="#374151" />
             </TouchableOpacity>
@@ -828,12 +826,12 @@ const finalizeSale = async () => {
           <ScrollView style={styles.modalContent}>
             {/* Cart Items */}
             <View style={styles.cartSection}>
-              <Text style={styles.sectionTitle}>Items in Cart</Text>
+              <Text style={styles.sectionTitle}>{getTranslation('itemsInCart', language)}</Text>
               {cart.map((item) => (
                 <View key={item.id} style={styles.cartItem}>
                   <View style={styles.cartItemInfo}>
                     <Text style={styles.cartItemName}>{item.name}</Text>
-                    <Text style={styles.cartItemPrice}>{formatCurrency(item.unit_price)} each</Text>
+                    <Text style={styles.cartItemPrice}>{formatCurrency(item.unit_price)} {getTranslation('each', language)}</Text>
                   </View>
                   <View style={styles.cartItemActions}>
                     <View style={styles.cartQuantityControls}>
@@ -847,7 +845,6 @@ const finalizeSale = async () => {
                       <TouchableOpacity
                         style={styles.cartQuantityButton}
                         onPress={() => updateCartQuantity(item.id, item.quantity + 1)}
-                        disabled={item.quantity >= item.quantity}
                       >
                         <MaterialIcons name="add" size={16} color="#059669" />
                       </TouchableOpacity>
@@ -855,12 +852,6 @@ const finalizeSale = async () => {
                     <Text style={styles.cartItemTotal}>
                       {formatCurrency(item.quantity * item.unit_price)}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.removeButton}
-                      onPress={() => removeFromCart(item.id)}
-                    >
-                      <MaterialIcons name="close" size={16} color="#ef4444" />
-                    </TouchableOpacity>
                   </View>
                 </View>
               ))}
@@ -869,17 +860,17 @@ const finalizeSale = async () => {
             {/* Totals */}
             <View style={styles.totalsSection}>
               <View style={[styles.totalRow, styles.grandTotalRow]}>
-                <Text style={styles.grandTotalLabel}>Total:</Text>
+                <Text style={styles.grandTotalLabel}>{getTranslation('total', language)}:</Text>
                 <Text style={styles.grandTotalAmount}>{formatCurrency(calculateTotal())}</Text>
               </View>
             </View>
 
             {/* Customer Information */}
             <View style={styles.customerSection}>
-              <Text style={styles.sectionTitle}>Customer Information</Text>
+              <Text style={styles.sectionTitle}>{getTranslation('customerInformation', language)}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Customer name (optional)"
+                placeholder={getTranslation('customerNameOptional', language)}
                 value={customerName}
                 onChangeText={setCustomerName}
                 autoCapitalize="words"
@@ -888,7 +879,7 @@ const finalizeSale = async () => {
 
             {/* Payment Method */}
             <View style={styles.paymentSection}>
-              <Text style={styles.sectionTitle}>Payment Method</Text>
+              <Text style={styles.sectionTitle}>{getTranslation('paymentMethod', language)}</Text>
               <View style={styles.paymentMethods}>
                 {paymentMethods.map((method) => (
                   <View key={method.value}>
@@ -911,7 +902,7 @@ const finalizeSale = async () => {
               ) : (
                 <>
                   <MaterialIcons name="check-circle" size={20} color="#ffffff" />
-                  <Text style={styles.completeButtonText}>Complete Sale</Text>
+                  <Text style={styles.completeButtonText}>{getTranslation('completeSale', language)}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -933,80 +924,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  retryButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
   header: {
-    backgroundColor: "#ffffff",
-    padding: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: 20,
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerLeft: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
   },
   storeSelectorButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     backgroundColor: "#eff6ff",
-    borderRadius: 6,
+    borderRadius: 8,
     alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
   },
   storeSelectorText: {
-    fontSize: 12,
-    color: "#2563eb",
-    marginLeft: 4,
+    fontSize: 14,
+    color: "#3b82f6",
+    marginLeft: 6,
     fontWeight: "500",
   },
   headerActions: {
@@ -1017,59 +972,64 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#059669",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cartButtonText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   tabs: {
     flexDirection: "row",
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#e2e8f0",
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: "center",
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
   activeTab: {
-    borderBottomColor: "#2563eb",
+    borderBottomColor: "#3b82f6",
   },
   tabText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#6b7280",
+    color: "#94a3b8",
   },
   activeTabText: {
-    color: "#2563eb",
+    color: "#3b82f6",
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e2e8f0',
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
     fontSize: 16,
-    color: '#1f2937',
+    color: '#0f172a',
     paddingVertical: 8,
   },
   clearSearchButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: 6,
+    marginLeft: 10,
   },
   listContainer: {
     padding: 20,
@@ -1077,58 +1037,61 @@ const styles = StyleSheet.create({
   },
   inventoryCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   outOfStockCard: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   itemHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   itemInfo: {
     flex: 1,
   },
   itemName: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
   },
   outOfStockText: {
-    color: "#9ca3af",
+    color: "#94a3b8",
   },
   itemCategory: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   stockInfo: {
     alignItems: "flex-end",
   },
   stockText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 4,
+    color: "#0f172a",
+    marginBottom: 6,
   },
   priceText: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "700",
     color: "#059669",
   },
   itemDescription: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 12,
+    fontSize: 15,
+    color: "#64748b",
+    marginBottom: 16,
     fontStyle: "italic",
   },
   itemActions: {
@@ -1139,164 +1102,179 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   disabledButton: {
-    backgroundColor: "#9ca3af",
+    backgroundColor: "#cbd5e1",
   },
   addButtonText: {
     color: "#ffffff",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
   },
   quantityControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
   },
   quantityButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   quantityText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1f2937",
-    minWidth: 24,
+    fontWeight: "700",
+    color: "#0f172a",
+    minWidth: 28,
     textAlign: "center",
   },
   saleCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   saleHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   saleInfo: {
     flex: 1,
   },
   saleTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
   },
   saleDate: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   saleAmount: {
     alignItems: "flex-end",
   },
   amountText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#10b981",
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#059669",
   },
   saleDetails: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   detailLabel: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#374151",
+    color: "#334155",
   },
   profitText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "500",
     color: "#059669",
-    marginTop: 2,
+    marginTop: 4,
   },
   saleItemsBreakdown: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 16,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
+    borderTopColor: "#f1f5f9",
   },
   breakdownTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
+    color: "#334155",
+    marginBottom: 12,
   },
   saleItemRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
   },
   saleItemName: {
-    fontSize: 13,
-    color: "#6b7280",
+    fontSize: 14,
+    color: "#64748b",
     flex: 1,
   },
   saleItemDetails: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   saleItemQuantity: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 13,
+    color: "#64748b",
   },
   saleItemPrice: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 13,
+    color: "#64748b",
   },
   saleItemTotal: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#374151",
-    minWidth: 50,
+    color: "#334155",
+    minWidth: 55,
     textAlign: "right",
   },
   emptyState: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 20,
+    marginBottom: 10,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#64748b",
     textAlign: "center",
     lineHeight: 24,
+    marginBottom: 30,
   },
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#f8fafc",
   },
   modalHeader: {
     flexDirection: "row",
@@ -1305,188 +1283,220 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0f172a",
   },
   modalContent: {
     flex: 1,
     padding: 20,
   },
   cartSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 16,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 20,
   },
   cartItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: "#f1f5f9",
   },
   cartItemInfo: {
     flex: 1,
   },
   cartItemName: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#111827",
+    fontWeight: "600",
+    color: "#0f172a",
     marginBottom: 4,
   },
   cartItemPrice: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#64748b",
   },
   cartItemActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
   },
   cartQuantityControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   cartQuantityButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#f3f4f6",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   cartQuantityText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1f2937",
-    minWidth: 20,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    minWidth: 24,
     textAlign: "center",
   },
   cartItemTotal: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-    minWidth: 60,
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#0f172a",
+    minWidth: 70,
     textAlign: "right",
   },
   removeButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#fef2f2",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#fecaca",
   },
   totalsSection: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   totalLabel: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#6b7280",
+    color: "#64748b",
   },
   totalAmount: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#111827",
+    color: "#0f172a",
   },
   grandTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: "#d1d5db",
-    paddingTop: 12,
-    marginTop: 8,
+    borderTopColor: "#e2e8f0",
+    paddingTop: 16,
+    marginTop: 12,
     marginBottom: 0,
   },
   grandTotalLabel: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: "#0f172a",
   },
   grandTotalAmount: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: "#059669",
   },
   customerSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     fontSize: 16,
-    color: "#111827",
+    color: "#0f172a",
     backgroundColor: "#ffffff",
   },
   paymentSection: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   paymentMethods: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 14,
   },
   paymentMethod: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: "#e2e8f0",
     backgroundColor: "#ffffff",
     minWidth: "45%",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   paymentMethodSelected: {
-    borderColor: "#2563eb",
+    borderColor: "#3b82f6",
     backgroundColor: "#eff6ff",
+    shadowColor: "#3b82f6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   paymentMethodText: {
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 10,
+    fontSize: 15,
     fontWeight: "500",
-    color: "#6b7280",
+    color: "#64748b",
   },
   paymentMethodTextSelected: {
-    color: "#2563eb",
+    color: "#3b82f6",
+    fontWeight: "600",
   },
   modalFooter: {
     padding: 20,
     backgroundColor: "#ffffff",
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: "#e2e8f0",
   },
   completeButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#059669",
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 18,
+    borderRadius: 14,
+    gap: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   completeButtonDisabled: {
-    backgroundColor: "#9ca3af",
+    backgroundColor: "#cbd5e1",
   },
   completeButtonText: {
     color: "#ffffff",
@@ -1494,8 +1504,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   deleteButton: {
-    padding: 8,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 10,
     backgroundColor: "#fef2f2",
     borderWidth: 1,
     borderColor: "#fecaca",
@@ -1504,16 +1514,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fef2f2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 6,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   offlineText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#ef4444',
     fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: 6,
   },
 });

@@ -15,10 +15,14 @@ import { offlineDataService } from '../utils/OfflineDataService';
 import { offlineManager } from '../utils/OfflineManager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showErrorAlert, handleSupabaseError, logError } from '../utils/errorHandling';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
+import { formatCurrency, formatDate } from '../utils/helpers'; // Import formatting helpers
 
 export default function FinalSoldScreen({ navigation, route }) {
   const { saleData, saleItems } = route.params;
   const { selectedStore } = useStore();
+  const { language } = useLanguage(); // Use language context
   const [processing, setProcessing] = useState(false);
   const [inventoryUpdated, setInventoryUpdated] = useState(false);
 
@@ -34,9 +38,9 @@ export default function FinalSoldScreen({ navigation, route }) {
       const { user } = await getCurrentUser();
       if (!user) {
         const error = {
-          title: 'Authentication Error',
-          message: 'User not authenticated. Please log in again.',
-          action: 'OK'
+          title: getTranslation('authenticationError', language),
+          message: getTranslation('userNotAuthenticatedPleaseLogin', language),
+          action: getTranslation('ok', language)
         };
         logError(error, { context: 'FinalSoldScreen.updateInventory' });
         showErrorAlert(error);
@@ -47,9 +51,9 @@ export default function FinalSoldScreen({ navigation, route }) {
       const profile = await getUserProfile(user.id);
       if (!profile) {
         const error = {
-          title: 'Profile Error',
-          message: 'User profile not found. Please contact support.',
-          action: 'OK'
+          title: getTranslation('profileError', language),
+          message: getTranslation('userProfileNotFoundPleaseContactSupport', language),
+          action: getTranslation('ok', language)
         };
         logError(error, { context: 'FinalSoldScreen.updateInventory', userId: user.id });
         showErrorAlert(error);
@@ -113,7 +117,7 @@ export default function FinalSoldScreen({ navigation, route }) {
     } catch (error) {
       console.error('Error updating inventory:', error);
       
-      const standardErrorMessage = handleSupabaseError(error, 'inventory update');
+      const standardErrorMessage = handleSupabaseError(error, getTranslation('inventoryUpdate', language));
       logError(error, { 
         context: 'FinalSoldScreen.updateInventory',
         saleData: saleData?.id,
@@ -122,9 +126,9 @@ export default function FinalSoldScreen({ navigation, route }) {
       
       // Show warning but don't block the user
       showErrorAlert({
-        title: 'Inventory Update Warning',
-        message: 'Inventory update may have failed, but the sale was recorded successfully. The inventory will be corrected on the next sync.',
-        action: 'OK'
+        title: getTranslation('inventoryUpdateWarning', language),
+        message: getTranslation('inventoryUpdateMayHaveFailed', language),
+        action: getTranslation('ok', language)
       });
       
       // Still mark as updated to allow user to proceed
@@ -182,12 +186,12 @@ export default function FinalSoldScreen({ navigation, route }) {
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemDetails}>
-          {item.quantity} units × ${(item.unit_price || 0).toFixed(2)} each
+          {item.quantity} {getTranslation('units', language)} × {formatCurrency(item.unit_price || 0)} {getTranslation('each', language)}
         </Text>
       </View>
       <View style={styles.itemTotal}>
         <Text style={styles.itemTotalText}>
-          ${(item.line_total || (item.unit_price || 0) * item.quantity).toFixed(2)}
+          {formatCurrency(item.line_total || (item.unit_price || 0) * item.quantity)}
         </Text>
       </View>
     </View>
@@ -205,7 +209,7 @@ export default function FinalSoldScreen({ navigation, route }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <MaterialIcons name="check-circle" size={24} color="#059669" />
-          <Text style={styles.headerTitle}>Sale Completed</Text>
+          <Text style={styles.headerTitle}>{getTranslation('saleCompleted', language)}</Text>
         </View>
         <TouchableOpacity
           style={styles.closeButton}
@@ -217,36 +221,36 @@ export default function FinalSoldScreen({ navigation, route }) {
 
       {/* Sale Summary */}
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Sale Summary</Text>
+        <Text style={styles.summaryTitle}>{getTranslation('saleSummary', language)}</Text>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Sale ID:</Text>
+          <Text style={styles.summaryLabel}>{getTranslation('saleID', language)}:</Text>
           <Text style={styles.summaryValue}>
             {saleData.id?.toString().substring(0, 8) || 'N/A'}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Date:</Text>
+          <Text style={styles.summaryLabel}>{getTranslation('date', language)}:</Text>
           <Text style={styles.summaryValue}>
-            {new Date(saleData.sale_date).toLocaleString()}
+            {formatDate(saleData.sale_date)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Payment:</Text>
+          <Text style={styles.summaryLabel}>{getTranslation('payment', language)}:</Text>
           <Text style={styles.summaryValue}>
-            {saleData.payment_method?.toUpperCase() || 'CASH'}
+            {saleData.payment_method ? getTranslation(saleData.payment_method, language) : getTranslation('cash', language)}
           </Text>
         </View>
         {saleData.is_offline && (
           <View style={styles.offlineBadge}>
             <MaterialIcons name="wifi-off" size={16} color="#ef4444" />
-            <Text style={styles.offlineText}>Offline Sale</Text>
+            <Text style={styles.offlineText}>{getTranslation('offlineSale', language)}</Text>
           </View>
         )}
       </View>
 
       {/* Sold Items */}
       <View style={styles.itemsSection}>
-        <Text style={styles.sectionTitle}>Items Sold</Text>
+        <Text style={styles.sectionTitle}>{getTranslation('itemsSold', language)}</Text>
         <FlatList
           data={saleItems}
           keyExtractor={(item, index) => `${item.name}_${index}`}
@@ -259,8 +263,8 @@ export default function FinalSoldScreen({ navigation, route }) {
       {/* Total */}
       <View style={styles.totalSection}>
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total Amount:</Text>
-          <Text style={styles.totalAmount}>${getTotalAmount().toFixed(2)}</Text>
+          <Text style={styles.totalLabel}>{getTranslation('totalAmount', language)}:</Text>
+          <Text style={styles.totalAmount}>{formatCurrency(getTotalAmount())}</Text>
         </View>
       </View>
 
@@ -269,17 +273,17 @@ export default function FinalSoldScreen({ navigation, route }) {
         {processing ? (
           <View style={styles.statusRow}>
             <ActivityIndicator size="small" color="#059669" />
-            <Text style={styles.statusText}>Updating inventory...</Text>
+            <Text style={styles.statusText}>{getTranslation('updatingInventory', language)}...</Text>
           </View>
         ) : inventoryUpdated ? (
           <View style={styles.statusRow}>
             <MaterialIcons name="check-circle" size={20} color="#059669" />
-            <Text style={styles.statusText}>Inventory updated successfully</Text>
+            <Text style={styles.statusText}>{getTranslation('inventoryUpdatedSuccessfully', language)}</Text>
           </View>
         ) : (
           <View style={styles.statusRow}>
             <MaterialIcons name="warning" size={20} color="#f59e0b" />
-            <Text style={styles.statusText}>Inventory update pending</Text>
+            <Text style={styles.statusText}>{getTranslation('inventoryUpdatePending', language)}</Text>
           </View>
         )}
       </View>
@@ -291,7 +295,7 @@ export default function FinalSoldScreen({ navigation, route }) {
           onPress={handleComplete}
         >
           <MaterialIcons name="home" size={20} color="#ffffff" />
-          <Text style={styles.completeButtonText}>Back to POS</Text>
+          <Text style={styles.completeButtonText}>{getTranslation('backToPOS', language)}</Text>
         </TouchableOpacity>
         
         {/* Alternative navigation button in case the primary one doesn't work */}
@@ -300,7 +304,7 @@ export default function FinalSoldScreen({ navigation, route }) {
           onPress={handleNavigation}
         >
           <MaterialIcons name="arrow-back" size={20} color="#2563eb" />
-          <Text style={styles.alternativeButtonText}>Go Back</Text>
+          <Text style={styles.alternativeButtonText}>{getTranslation('goBack', language)}</Text>
         </TouchableOpacity>
       </View>
     </View>

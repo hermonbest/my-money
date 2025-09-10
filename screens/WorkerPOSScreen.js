@@ -21,10 +21,13 @@ import { handleSupabaseError, handleInventoryError, handleSaleError, showErrorAl
 import { useStore } from '../contexts/StoreContext';
 import HeaderWithLogout from '../components/HeaderWithLogout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function WorkerPOSScreen({ navigation, route }) {
   // Core state management
   const { selectedStore, userRole, loading: storeLoading } = useStore();
+  const { language } = useLanguage(); // Use language context
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -168,18 +171,18 @@ export default function WorkerPOSScreen({ navigation, route }) {
     try {
       if (!item || !item.id) {
         showErrorAlert({
-          title: 'Invalid Item',
-          message: 'The selected item is invalid.',
-          action: 'OK'
+          title: getTranslation('invalidItem', language),
+          message: getTranslation('selectedItemIsInvalid', language),
+          action: getTranslation('ok', language)
         });
         return;
       }
       
       if (customQuantity <= 0 || !Number.isInteger(customQuantity)) {
         showErrorAlert({
-          title: 'Invalid Quantity',
-          message: 'Quantity must be a positive whole number.',
-          action: 'OK'
+          title: getTranslation('invalidQuantity', language),
+          message: getTranslation('quantityMustBePositiveWholeNumber', language),
+          action: getTranslation('ok', language)
         });
         return;
       }
@@ -191,9 +194,9 @@ export default function WorkerPOSScreen({ navigation, route }) {
       
       if (requestedQuantity > item.quantity) {
         showErrorAlert({
-          title: 'Insufficient Stock',
-          message: `Only ${item.quantity} units of "${item.name}" are available.`,
-          action: 'OK'
+          title: getTranslation('insufficientStock', language),
+          message: `${getTranslation('onlyUnitsOfItemAreAvailable', language).replace('{quantity}', item.quantity).replace('{itemName}', item.name)}`,
+          action: getTranslation('ok', language)
         });
         return;
       }
@@ -220,9 +223,9 @@ export default function WorkerPOSScreen({ navigation, route }) {
     } catch (error) {
       console.error('Error adding item to cart:', error);
       showErrorAlert({
-        title: 'Add to Cart Failed',
-        message: 'Unable to add item to cart. Please try again.',
-        action: 'OK'
+        title: getTranslation('addToCartFailed', language),
+        message: getTranslation('unableToAddItemToCartTryAgain', language),
+        action: getTranslation('ok', language)
       });
     }
   }, [cart]);
@@ -236,18 +239,18 @@ export default function WorkerPOSScreen({ navigation, route }) {
     const inventoryItem = inventory.find(item => item.id === itemId);
     if (!inventoryItem) {
       showErrorAlert({
-        title: 'Item Not Found',
-        message: 'Item not found in inventory.',
-        action: 'OK'
+        title: getTranslation('itemNotFound', language),
+        message: getTranslation('itemNotFoundInInventory', language),
+        action: getTranslation('ok', language)
       });
       return;
     }
     
     if (newQuantity > inventoryItem.quantity) {
       showErrorAlert({
-        title: 'Insufficient Stock',
-        message: `Only ${inventoryItem.quantity} units available.`,
-        action: 'OK'
+        title: getTranslation('insufficientStock', language),
+        message: `${getTranslation('onlyUnitsAvailable', language).replace('{quantity}', inventoryItem.quantity)}`,
+        action: getTranslation('ok', language)
       });
       return;
     }
@@ -267,15 +270,15 @@ export default function WorkerPOSScreen({ navigation, route }) {
   
   const clearCart = useCallback(() => {
     Alert.alert(
-      'Clear Cart',
-      'Are you sure you want to remove all items from cart?',
+      getTranslation('clearCart', language),
+      getTranslation('confirmRemoveAllItemsFromCart', language),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => setCart([]) }
+        { text: getTranslation('cancel', language), style: 'cancel' },
+        { text: getTranslation('clear', language), style: 'destructive', onPress: () => setCart([]) }
       ]
     );
   }, []);
-  
+
   // Cart utility functions
   const getCartTotal = useCallback(() => {
     return cart.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
@@ -423,7 +426,7 @@ export default function WorkerPOSScreen({ navigation, route }) {
             <MaterialIcons name="search" size={20} color="#6b7280" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search inventory..."
+              placeholder={getTranslation('searchInventory', language)}
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholderTextColor="#9ca3af"
@@ -526,8 +529,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  
-  // Loading and error states
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -537,78 +538,88 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6b7280',
+    color: '#64748b',
+    fontWeight: '500',
   },
   
-  // No store state
-  noStoreContainer: {
+  // Header
+  header: {
+    backgroundColor: '#ffffff',
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  titleContainer: {
     flex: 1,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  storeName: {
+    fontSize: 15,
+    color: '#64748b',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  logoutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  noStoreTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  noStoreMessage: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    padding: 20,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   
   // Offline indicator
-  offlineIndicator: {
+  offlineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fef2f2',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   offlineText: {
     fontSize: 14,
     color: '#ef4444',
     fontWeight: '500',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   
   // Search bar
@@ -617,24 +628,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#ffffff',
     marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    shadowColor: '#000',
+    marginBottom: 12,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
     fontSize: 16,
-    color: '#1f2937',
+    color: '#0f172a',
   },
   refreshButton: {
-    marginLeft: 8,
+    marginLeft: 10,
     padding: 8,
   },
   
@@ -645,30 +658,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#eff6ff',
     marginHorizontal: 16,
-    marginBottom: 8,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginBottom: 12,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderWidth: 1,
     borderColor: '#dbeafe',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   cartSummaryLeft: {
     flex: 1,
   },
   cartSummaryText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2563eb',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#3b82f6',
   },
   cartSummaryRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   clearCartButton: {
-    padding: 8,
+    padding: 10,
     backgroundColor: '#fef2f2',
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#fecaca',
   },
@@ -676,14 +694,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#059669',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   checkoutButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   
@@ -695,12 +718,12 @@ const styles = StyleSheet.create({
   
   // Section headers
   sectionHeader: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
   },
   
   // Inventory section
@@ -714,49 +737,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   outOfStockItem: {
-    opacity: 0.5,
+    opacity: 0.7,
     backgroundColor: '#f9fafb',
   },
   itemInfo: {
     flex: 1,
   },
   itemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
   },
   itemCategory: {
     fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 4,
+    color: '#64748b',
+    marginBottom: 6,
+    fontWeight: '500',
   },
   itemPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#059669',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   itemStock: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
+    fontWeight: '500',
   },
   lowStockText: {
     color: '#f59e0b',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   outOfStockText: {
     color: '#ef4444',
+    fontWeight: '600',
   },
   itemActions: {
     alignItems: 'center',
@@ -765,26 +793,28 @@ const styles = StyleSheet.create({
   },
   cartIndicator: {
     position: 'absolute',
-    top: -8,
-    right: -8,
+    top: -6,
+    right: -6,
     backgroundColor: '#ef4444',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
   cartIndicatorText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   
   // Cart section
   cartSection: {
-    maxHeight: 300,
-    marginTop: 16,
+    maxHeight: 320,
+    marginTop: 20,
   },
   cartList: {
     flex: 1,
@@ -793,60 +823,64 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   cartItemInfo: {
     flex: 1,
   },
   cartItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
   },
   cartItemPrice: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
+    fontSize: 15,
+    color: '#64748b',
+    marginBottom: 4,
   },
   cartItemTotal: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#059669',
   },
   cartItemActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
   },
   quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   quantityButton: {
-    padding: 8,
+    padding: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   quantityText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    paddingHorizontal: 12,
-    minWidth: 40,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    paddingHorizontal: 14,
+    minWidth: 45,
     textAlign: 'center',
   },
   removeButton: {
-    padding: 8,
+    padding: 10,
   },
   
   // Empty states
@@ -854,18 +888,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 50,
   },
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: 20,
+    marginBottom: 10,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: '#64748b',
     textAlign: 'center',
+    lineHeight: 24,
   },
 });

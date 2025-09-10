@@ -10,8 +10,11 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function RoleSelectionScreen({ navigation, route, onProfileCreated }) {
+  const { language } = useLanguage(); // Use language context
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -25,7 +28,7 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
         setCurrentUser(user);
       } catch (error) {
         console.error('Error getting current user:', error);
-        Alert.alert('Error', 'Please sign in again.');
+        Alert.alert(getTranslation('error', language), getTranslation('authError', language));
       }
     };
     
@@ -35,33 +38,33 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
   const roles = [
     {
       id: 'individual',
-      title: 'Individual Business Owner',
-      description: 'Manage your own business with full control over inventory, sales, and expenses.',
+      title: getTranslation('individualBusinessOwner', language),
+      description: getTranslation('individualBusinessDesc', language),
       icon: 'person',
       features: [
-        'Track inventory and sales',
-        'Manage expenses',
-        'View analytics and reports',
-        'Full business management'
+        getTranslation('trackInventory', language),
+        getTranslation('manageExpenses', language),
+        getTranslation('viewAnalytics', language),
+        getTranslation('fullBusinessManagement', language)
       ]
     },
     {
       id: 'owner',
-      title: 'Multi-Store Owner',
-      description: 'Manage multiple stores and invite workers to help with operations.',
+      title: getTranslation('multiStoreOwner', language),
+      description: getTranslation('multiStoreDesc', language),
       icon: 'store',
       features: [
-        'Manage multiple stores',
-        'Invite and manage workers',
-        'Store-specific analytics',
-        'Worker oversight and permissions'
+        getTranslation('manageMultipleStores', language),
+        getTranslation('inviteWorkers', language),
+        getTranslation('storeSpecificAnalytics', language),
+        getTranslation('workerOversight', language)
       ]
     }
   ];
 
   const handleRoleSelection = async (role) => {
     if (!currentUser) {
-      Alert.alert('Error', 'Please wait for authentication to complete.');
+      Alert.alert(getTranslation('error', language), getTranslation('loading', language));
       return;
     }
 
@@ -97,7 +100,7 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
             user_id: currentUser.id,
             email: currentUser.email,
             role: role,
-            business_name: role === 'individual' ? 'My Business' : 'My Store',
+            business_name: role === 'individual' ? getTranslation('myBusiness', language) : getTranslation('myStore', language),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -106,13 +109,13 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
       }
 
       Alert.alert(
-        'Success!',
-        `Welcome! You've been set up as a ${role === 'individual' ? 'Individual Business Owner' : 'Multi-Store Owner'}.`,
+        getTranslation('success', language),
+        `${getTranslation('welcomeBack', language)}! ${getTranslation('profileCreated', language)} ${role === 'individual' ? getTranslation('individualBusinessOwner', language) : getTranslation('multiStoreOwner', language)}.`,
         [
           {
-            text: 'Continue',
+            text: getTranslation('continue', language),
             onPress: async () => {
-              console.log('Profile setup completed, refreshing auth state...');
+              console.log(getTranslation('profileSetupCompleted', language));
               if (onProfileCreated) {
                 await onProfileCreated();
               }
@@ -123,7 +126,7 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
 
     } catch (error) {
       console.error('Error setting up profile:', error);
-      Alert.alert('Error', 'Failed to set up your account. Please try again.');
+      Alert.alert(getTranslation('error', language), getTranslation('operationFailed', language));
     } finally {
       setLoading(false);
     }
@@ -135,9 +138,9 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
       <View style={styles.container}>
         <View style={styles.header}>
           <ActivityIndicator size="large" color="#2563eb" />
-          <Text style={styles.title}>Loading...</Text>
+          <Text style={styles.title}>{getTranslation('loading', language)}</Text>
           <Text style={styles.subtitle}>
-            Please wait while we set up your account
+            {getTranslation('pleaseWaitSetup', language)}
           </Text>
         </View>
       </View>
@@ -148,9 +151,9 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <MaterialIcons name="account-circle" size={80} color="#2563eb" />
-        <Text style={styles.title}>Choose Your Role</Text>
+        <Text style={styles.title}>{getTranslation('chooseYourRole', language)}</Text>
         <Text style={styles.subtitle}>
-          Select how you'd like to use this business management app
+          {getTranslation('selectHowToUse', language)}
         </Text>
       </View>
 
@@ -204,114 +207,11 @@ export default function RoleSelectionScreen({ navigation, route, onProfileCreate
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          You can change your role later in settings
+          {getTranslation('changeRoleLater', language)}
         </Text>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  rolesContainer: {
-    padding: 20,
-    gap: 16,
-  },
-  roleCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  selectedRoleCard: {
-    borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
-  },
-  roleHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  roleInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  roleTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  selectedRoleTitle: {
-    color: '#2563eb',
-  },
-  roleDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  featuresList: {
-    gap: 8,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  featureText: {
-    fontSize: 14,
-    color: '#374151',
-    flex: 1,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-  },
-  footer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-});
+// ... existing styles ...

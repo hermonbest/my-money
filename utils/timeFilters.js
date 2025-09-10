@@ -3,6 +3,9 @@
  * Provides date range calculations for dashboard filtering
  */
 
+import { getTranslation } from './translations';
+
+// We'll need to pass language as a parameter to these functions
 export const TIME_FILTERS = {
   TODAY: 'today',
   WEEK: 'week', 
@@ -10,11 +13,59 @@ export const TIME_FILTERS = {
   ALL_TIME: 'all_time'
 };
 
-export const TIME_FILTER_LABELS = {
-  [TIME_FILTERS.TODAY]: 'Today',
-  [TIME_FILTERS.WEEK]: 'This Week',
-  [TIME_FILTERS.MONTH]: 'This Month',
-  [TIME_FILTERS.ALL_TIME]: 'All Time'
+/**
+ * Get time filter labels with translation support
+ * @param {string} language - Current language
+ * @returns {Object} - Translated time filter labels
+ */
+export const getTimeFilterLabels = (language) => ({
+  [TIME_FILTERS.TODAY]: getTranslation('today', language),
+  [TIME_FILTERS.WEEK]: getTranslation('thisWeek', language),
+  [TIME_FILTERS.MONTH]: getTranslation('thisMonth', language),
+  [TIME_FILTERS.ALL_TIME]: getTranslation('allTime', language)
+});
+
+/**
+ * Get human-readable date range description
+ * @param {string} filter - Time filter type
+ * @param {string} language - Current language
+ * @returns {string} - Human-readable description
+ */
+export const getDateRangeDescription = (filter, language = 'en') => {
+  const { startDate, endDate } = getDateRange(filter);
+  
+  if (!startDate || !endDate) {
+    return getTranslation('allTime', language);
+  }
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (filter === TIME_FILTERS.TODAY) {
+    return `${getTranslation('today', language)} (${start.toLocaleDateString()})`;
+  }
+  
+  if (filter === TIME_FILTERS.WEEK) {
+    return `${getTranslation('thisWeek', language)} (${start.toLocaleDateString()} - ${end.toLocaleDateString()})`;
+  }
+  
+  if (filter === TIME_FILTERS.MONTH) {
+    return `${getTranslation('thisMonth', language)} (${start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`;
+  }
+  
+  return getTranslation('allTime', language);
+};
+
+/**
+ * Get time filter options for Picker
+ * @param {string} language - Current language
+ * @returns {Array} - Array of { label, value } objects
+ */
+export const getTimeFilterOptions = (language = 'en') => {
+  return Object.values(TIME_FILTERS).map(filter => ({
+    label: getTimeFilterLabels(language)[filter],
+    value: filter
+  }));
 };
 
 /**
@@ -65,36 +116,6 @@ export const getDateRange = (filter) => {
 };
 
 /**
- * Get human-readable date range description
- * @param {string} filter - Time filter type
- * @returns {string} - Human-readable description
- */
-export const getDateRangeDescription = (filter) => {
-  const { startDate, endDate } = getDateRange(filter);
-  
-  if (!startDate || !endDate) {
-    return 'All time';
-  }
-  
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  
-  if (filter === TIME_FILTERS.TODAY) {
-    return `Today (${start.toLocaleDateString()})`;
-  }
-  
-  if (filter === TIME_FILTERS.WEEK) {
-    return `This week (${start.toLocaleDateString()} - ${end.toLocaleDateString()})`;
-  }
-  
-  if (filter === TIME_FILTERS.MONTH) {
-    return `This month (${start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })})`;
-  }
-  
-  return 'All time';
-};
-
-/**
  * Check if a date falls within a time filter range
  * @param {string} date - Date to check (ISO string)
  * @param {string} filter - Time filter type
@@ -109,17 +130,6 @@ export const isDateInRange = (date, filter) => {
   const checkDate = new Date(date);
   
   return checkDate >= new Date(startDate) && checkDate <= new Date(endDate);
-};
-
-/**
- * Get time filter options for Picker
- * @returns {Array} - Array of { label, value } objects
- */
-export const getTimeFilterOptions = () => {
-  return Object.values(TIME_FILTERS).map(filter => ({
-    label: TIME_FILTER_LABELS[filter],
-    value: filter
-  }));
 };
 
 /**

@@ -12,8 +12,11 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
 import { getCurrentUser } from '../utils/authUtils';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function WorkerInvitationAcceptScreen({ navigation }) {
+  const { language } = useLanguage(); // Use language context
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,7 +63,7 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
 
       if (error) {
         console.error('Error loading invitations:', error);
-        Alert.alert('Error', 'Failed to load invitations');
+        Alert.alert(getTranslation('error', language), getTranslation('failedToLoadInvitations', language));
         return;
       }
 
@@ -68,7 +71,7 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
 
     } catch (error) {
       console.error('Error loading invitations:', error);
-      Alert.alert('Error', 'Failed to load invitations');
+      Alert.alert(getTranslation('error', language), getTranslation('failedToLoadInvitations', language));
     } finally {
       setLoading(false);
     }
@@ -76,12 +79,12 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
 
   const handleAcceptInvitation = async (invitation) => {
     Alert.alert(
-      'Accept Invitation',
-      `Are you sure you want to join ${invitation.stores?.name} as a worker?`,
+      getTranslation('acceptInvitation', language),
+      `${getTranslation('confirmJoinStoreAsWorker', language).replace('{storeName}', invitation.stores?.name)}`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: getTranslation('cancel', language), style: 'cancel' },
         {
-          text: 'Accept',
+          text: getTranslation('accept', language),
           onPress: async () => {
             try {
               const { user } = await getCurrentUser();
@@ -94,17 +97,17 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
 
               if (error) {
                 console.error('Error accepting invitation:', error);
-                Alert.alert('Error', error.message || 'Failed to accept invitation');
+                Alert.alert(getTranslation('error', language), error.message || getTranslation('failedToAcceptInvitation', language));
                 return;
               }
 
               if (data.success) {
                 Alert.alert(
-                  'Success!', 
-                  `You have successfully joined ${data.store_name} as a worker!`,
+                  getTranslation('success', language), 
+                  `${getTranslation('successfullyJoinedStoreAsWorker', language).replace('{storeName}', data.store_name)}`,
                   [
                     {
-                      text: 'OK',
+                      text: getTranslation('ok', language),
                       onPress: () => {
                         // Refresh invitations
                         loadInvitations();
@@ -115,12 +118,12 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
                   ]
                 );
               } else {
-                Alert.alert('Error', data.error || 'Failed to accept invitation');
+                Alert.alert(getTranslation('error', language), data.error || getTranslation('failedToAcceptInvitation', language));
               }
 
             } catch (error) {
               console.error('Error accepting invitation:', error);
-              Alert.alert('Error', 'Failed to accept invitation');
+              Alert.alert(getTranslation('error', language), getTranslation('failedToAcceptInvitation', language));
             }
           }
         }
@@ -152,18 +155,18 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
             style={styles.storeIcon}
           />
           <View style={styles.storeDetails}>
-            <Text style={styles.storeName}>{item.stores?.name || 'Unknown Store'}</Text>
+            <Text style={styles.storeName}>{item.stores?.name || getTranslation('unknownStore', language)}</Text>
             <Text style={styles.storeDescription}>
-              {item.stores?.description || 'No description available'}
+              {item.stores?.description || getTranslation('noDescriptionAvailable', language)}
             </Text>
             <Text style={styles.storeAddress}>
-              {item.stores?.address || 'No address available'}
+              {item.stores?.address || getTranslation('noAddressAvailable', language)}
             </Text>
             <Text style={styles.invitationDate}>
-              Invited: {new Date(item.created_at).toLocaleDateString()}
+              {getTranslation('invited', language)}: {new Date(item.created_at).toLocaleDateString()}
             </Text>
             <Text style={styles.expirationDate}>
-              Expires: {new Date(item.expires_at).toLocaleDateString()}
+              {getTranslation('expires', language)}: {new Date(item.expires_at).toLocaleDateString()}
             </Text>
           </View>
         </View>
@@ -179,7 +182,7 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
               onPress={() => handleAcceptInvitation(item)}
             >
               <MaterialIcons name="check" size={20} color="#ffffff" />
-              <Text style={styles.acceptButtonText}>Accept</Text>
+              <Text style={styles.acceptButtonText}>{getTranslation('accept', language)}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -197,7 +200,7 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading invitations...</Text>
+        <Text style={styles.loadingText}>{getTranslation('loadingInvitations', language)}</Text>
       </View>
     );
   }
@@ -205,9 +208,9 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Worker Invitations</Text>
+        <Text style={styles.title}>{getTranslation('workerInvitations', language)}</Text>
         <Text style={styles.subtitle}>
-          Accept invitations to join stores as a worker
+          {getTranslation('acceptInvitationsToJoinStoresAsWorker', language)}
         </Text>
       </View>
 
@@ -223,9 +226,9 @@ export default function WorkerInvitationAcceptScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="inbox" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>No invitations</Text>
+            <Text style={styles.emptyTitle}>{getTranslation('noInvitations', language)}</Text>
             <Text style={styles.emptyDescription}>
-              You don't have any pending worker invitations
+              {getTranslation('noPendingWorkerInvitations', language)}
             </Text>
           </View>
         }

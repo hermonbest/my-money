@@ -150,22 +150,28 @@ export default function InventoryScreen({ navigation }) {
           </View>
         </View>
         
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Cost Price:</Text>
-          <Text style={styles.detailValue}>{formatCurrency(item.cost_price)}</Text>
-        </View>
+        {/* Hide cost price for workers */}
+        {userRole !== 'worker' && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Cost Price:</Text>
+            <Text style={styles.detailValue}>{formatCurrency(item.cost_price)}</Text>
+          </View>
+        )}
         
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Selling Price:</Text>
           <Text style={styles.detailValue}>{formatCurrency(item.selling_price)}</Text>
         </View>
         
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Value:</Text>
-          <Text style={[styles.detailValue, styles.valueText]}>
-            {formatCurrency(item.quantity * item.cost_price)}
-          </Text>
-        </View>
+        {/* Hide total value for workers */}
+        {userRole !== 'worker' && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Value:</Text>
+            <Text style={[styles.detailValue, styles.valueText]}>
+              {formatCurrency(item.quantity * item.cost_price)}
+            </Text>
+          </View>
+        )}
         
         {item.expiration_date && (
           <View style={styles.detailRow}>
@@ -227,7 +233,7 @@ export default function InventoryScreen({ navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading inventory...</Text>
+        <Text style={styles.loadingText}>{getTranslation('loading', language)} {getTranslation('inventory', language).toLowerCase()}...</Text>
       </View>
     );
   }
@@ -236,10 +242,10 @@ export default function InventoryScreen({ navigation }) {
     return (
       <View style={styles.errorContainer}>
         <MaterialIcons name="error-outline" size={64} color="#ef4444" />
-        <Text style={styles.errorTitle}>Error Loading Inventory</Text>
+        <Text style={styles.errorTitle}>{getTranslation('error', language)} {getTranslation('loading', language)} {getTranslation('inventory', language)}</Text>
         <Text style={styles.errorMessage}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={loadInventory}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{getTranslation('retry', language)}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -257,7 +263,7 @@ export default function InventoryScreen({ navigation }) {
             >
               <MaterialIcons name="store" size={20} color="#2563eb" />
               <Text style={styles.storeSelectorText}>
-                {selectedStore ? selectedStore.name : 'Select Store'}
+                {selectedStore ? selectedStore.name : getTranslation('selectStore', language)}
               </Text>
             </TouchableOpacity>
           )}
@@ -303,42 +309,54 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: '#e2e8f0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerLeft: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
   },
   storeSelectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     backgroundColor: '#eff6ff',
-    borderRadius: 6,
+    borderRadius: 8,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
   storeSelectorText: {
-    fontSize: 12,
-    color: '#2563eb',
-    marginLeft: 4,
+    fontSize: 14,
+    color: '#3b82f6',
+    marginLeft: 6,
     fontWeight: '500',
   },
   addButton: {
-    backgroundColor: '#2563eb',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    backgroundColor: '#3b82f6',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   listContainer: {
-    padding: 16,
+    padding: 20,
   },
   emptyListContainer: {
     flex: 1,
@@ -346,36 +364,42 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   itemName: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontWeight: '700',
+    color: '#0f172a',
     flex: 1,
   },
   itemActions: {
     flexDirection: 'row',
   },
   actionButton: {
-    padding: 8,
-    marginLeft: 8,
+    padding: 10,
+    marginLeft: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   itemDetails: {
-    gap: 8,
+    gap: 12,
   },
   detailRow: {
     flexDirection: 'row',
@@ -383,26 +407,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   detailLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#0f172a',
   },
   valueText: {
-    color: '#2563eb',
+    color: '#3b82f6',
+    fontWeight: '700',
   },
   quantityContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   stockDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
   emptyContainer: {
     flex: 1,
@@ -411,26 +437,31 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#6b7280',
+    color: '#64748b',
     textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 20,
+    marginBottom: 28,
   },
   addFirstButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#3b82f6',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addFirstButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   loadingContainer: {
     flex: 1,
@@ -441,7 +472,8 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6b7280',
+    color: '#64748b',
+    fontWeight: '500',
   },
   errorContainer: {
     flex: 1,
@@ -451,23 +483,29 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: 20,
+    marginBottom: 10,
   },
   errorMessage: {
     fontSize: 16,
-    color: '#6b7280',
+    color: '#64748b',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+    lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   retryButtonText: {
     color: '#ffffff',
@@ -479,9 +517,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   expirationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
   },
 });

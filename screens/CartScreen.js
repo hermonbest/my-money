@@ -13,10 +13,13 @@ import { useStore } from '../contexts/StoreContext';
 import { getCurrentUser, getUserProfile } from '../utils/authUtils';
 import { offlineDataService } from '../utils/OfflineDataService';
 import { offlineManager } from '../utils/OfflineManager';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function CartScreen({ navigation, route }) {
   const { cart, setCart } = route.params;
   const { selectedStore, userRole } = useStore();
+  const { language } = useLanguage(); // Use language context
   const [processing, setProcessing] = useState(false);
   const [remainingStock, setRemainingStock] = useState({});
 
@@ -44,7 +47,7 @@ export default function CartScreen({ navigation, route }) {
 
     const cartItem = cart.find(cartItem => cartItem.id === itemId);
     if (!cartItem) {
-      Alert.alert('Error', 'Item not found in cart');
+      Alert.alert(getTranslation('error', language), getTranslation('itemNotFoundInCart', language));
       return;
     }
 
@@ -52,13 +55,13 @@ export default function CartScreen({ navigation, route }) {
       // Get current inventory to check available stock
       const { user } = await getCurrentUser();
       if (!user) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(getTranslation('error', language), getTranslation('userNotAuthenticated', language));
         return;
       }
 
       const profile = await getUserProfile(user.id);
       if (!profile) {
-        Alert.alert('Error', 'User profile not found');
+        Alert.alert(getTranslation('error', language), getTranslation('userProfileNotFound', language));
         return;
       }
 
@@ -67,7 +70,7 @@ export default function CartScreen({ navigation, route }) {
       const inventoryItem = currentInventory.find(inv => inv.id === itemId);
       
       if (!inventoryItem) {
-        Alert.alert('Error', 'Item no longer available in inventory');
+        Alert.alert(getTranslation('error', language), getTranslation('itemNotFoundInInventory', language));
         return;
       }
 
@@ -77,8 +80,8 @@ export default function CartScreen({ navigation, route }) {
       const availableStock = inventoryItem.quantity - alreadyInCart;
 
       if (newQuantity > availableStock) {
-        Alert.alert('Insufficient Stock', 
-          `Only ${availableStock} units available. Current stock: ${inventoryItem.quantity}, already in cart: ${alreadyInCart}`);
+        Alert.alert(getTranslation('insufficientStock', language), 
+          `${getTranslation('onlyUnitsAvailable', language)} ${availableStock} ${getTranslation('unitsAvailable', language)}. ${getTranslation('currentStock', language)}: ${inventoryItem.quantity}, ${getTranslation('alreadyInCart', language)}: ${alreadyInCart}`);
         return;
       }
 
@@ -91,7 +94,7 @@ export default function CartScreen({ navigation, route }) {
       );
     } catch (error) {
       console.error('Error updating quantity:', error);
-      Alert.alert('Error', 'Could not update quantity. Please try again.');
+      Alert.alert(getTranslation('error', language), getTranslation('operationFailed', language));
     }
   };
 
@@ -129,7 +132,7 @@ export default function CartScreen({ navigation, route }) {
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      Alert.alert('Error', 'Cart is empty');
+      Alert.alert(getTranslation('error', language), getTranslation('emptyCart', language));
       return;
     }
 
@@ -137,13 +140,13 @@ export default function CartScreen({ navigation, route }) {
     try {
       const { user } = await getCurrentUser();
       if (!user) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(getTranslation('error', language), getTranslation('userNotAuthenticated', language));
         return;
       }
 
       const profile = await getUserProfile(user.id);
       if (!profile) {
-        Alert.alert('Error', 'User profile not found');
+        Alert.alert(getTranslation('error', language), getTranslation('userProfileNotFound', language));
         return;
       }
 
@@ -156,19 +159,19 @@ export default function CartScreen({ navigation, route }) {
       for (const cartItem of cart) {
         const inventoryItem = currentInventory.find(inv => inv.id === cartItem.id);
         if (!inventoryItem) {
-          Alert.alert('Error', `${cartItem.name} is no longer available`);
+          Alert.alert(getTranslation('error', language), `${cartItem.name} ${getTranslation('noLongerAvailable', language)}`);
           return;
         }
         
         if (inventoryItem.quantity < cartItem.quantity) {
-          Alert.alert('Insufficient Stock', 
-            `${cartItem.name} only has ${inventoryItem.quantity} units available, but you're trying to sell ${cartItem.quantity} units.`);
+          Alert.alert(getTranslation('insufficientStock', language), 
+            `${cartItem.name} ${getTranslation('onlyHas', language)} ${inventoryItem.quantity} ${getTranslation('unitsAvailable', language)}, ${getTranslation('butYoureTryingToSell', language)} ${cartItem.quantity} ${getTranslation('units', language)}.`);
           return;
         }
       }
     } catch (error) {
       console.error('Error validating stock:', error);
-      Alert.alert('Warning', 'Could not validate stock availability. Proceeding with sale...');
+      Alert.alert(getTranslation('warning', language), getTranslation('couldNotValidateStock', language));
     }
 
     try {
@@ -176,14 +179,14 @@ export default function CartScreen({ navigation, route }) {
       
       const { user } = await getCurrentUser();
       if (!user) {
-        Alert.alert('Error', 'User not authenticated');
+        Alert.alert(getTranslation('error', language), getTranslation('userNotAuthenticated', language));
         return;
       }
 
       // Get user profile for store assignment
       const profile = await getUserProfile(user.id);
       if (!profile) {
-        Alert.alert('Error', 'User profile not found');
+        Alert.alert(getTranslation('error', language), getTranslation('userProfileNotFound', language));
         return;
       }
 
@@ -196,7 +199,7 @@ export default function CartScreen({ navigation, route }) {
         tax_amount: 0,
         discount_amount: 0,
         payment_method: 'cash', // Default to cash
-        notes: 'POS Sale',
+        notes: getTranslation('posSale', language),
         sale_date: new Date().toISOString(),
       };
 
@@ -222,13 +225,13 @@ export default function CartScreen({ navigation, route }) {
           }
         });
       } else {
-        Alert.alert('Error', result.error || 'Failed to process sale');
+        Alert.alert(getTranslation('error', language), result.error || getTranslation('failedToProcessSale', language));
       }
 
     } catch (error) {
       console.error('Error processing sale:', error);
-      const offlineMessage = !offlineManager.isConnected() ? '\n\n⚠️ You\'re currently offline. The sale will be processed when you\'re back online.' : '';
-      Alert.alert('Sale Processing', `Sale has been queued for processing.${offlineMessage}`);
+      const offlineMessage = !offlineManager.isConnected() ? `\n\n⚠️ ${getTranslation('currentlyOffline', language)}. ${getTranslation('saleWillProcess', language)}.` : '';
+      Alert.alert(getTranslation('saleProcessing', language), `${getTranslation('saleQueued', language)}.${offlineMessage}`);
       
       // Navigate to Final Sold Section even for offline sales
       navigation.navigate('FinalSoldScreen', {
@@ -264,13 +267,13 @@ export default function CartScreen({ navigation, route }) {
         <View style={styles.cartItemInfo}>
           <Text style={styles.cartItemName}>{item.name}</Text>
           <Text style={styles.cartItemPrice}>
-            ${(item.unit_price || 0).toFixed(2)} each
+            ${(item.unit_price || 0).toFixed(2)} {getTranslation('each', language)}
           </Text>
           <Text style={[styles.stockText, isLowStock && styles.lowStockText]}>
-            Stock: {stock} units remaining
+            {getTranslation('stock', language)}: {stock} {getTranslation('unitsRemaining', language)}
           </Text>
           <Text style={styles.cartItemTotal}>
-            Total: ${((item.unit_price || 0) * item.quantity).toFixed(2)}
+            {getTranslation('total', language)}: ${((item.unit_price || 0) * item.quantity).toFixed(2)}
           </Text>
         </View>
         
@@ -309,7 +312,7 @@ export default function CartScreen({ navigation, route }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#059669" />
-        <Text style={styles.loadingText}>Processing Sale...</Text>
+        <Text style={styles.loadingText}>{getTranslation('processingSale', language)}...</Text>
       </View>
     );
   }
@@ -324,7 +327,7 @@ export default function CartScreen({ navigation, route }) {
         >
           <MaterialIcons name="arrow-back" size={24} color="#059669" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cart ({cart.length} items)</Text>
+        <Text style={styles.headerTitle}>{getTranslation('cart', language)} ({cart.length} {getTranslation('items', language)})</Text>
         <TouchableOpacity
           style={styles.clearButton}
           onPress={() => setCart([])}
@@ -345,7 +348,7 @@ export default function CartScreen({ navigation, route }) {
       {/* Total and Checkout */}
       <View style={styles.totalSection}>
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total:</Text>
+          <Text style={styles.totalLabel}>{getTranslation('total', language)}:</Text>
           <Text style={styles.totalAmount}>${getCartTotal().toFixed(2)}</Text>
         </View>
         <TouchableOpacity
@@ -354,7 +357,7 @@ export default function CartScreen({ navigation, route }) {
           disabled={cart.length === 0}
         >
           <MaterialIcons name="shopping-cart-checkout" size={20} color="#ffffff" />
-          <Text style={styles.checkoutButtonText}>Checkout</Text>
+          <Text style={styles.checkoutButtonText}>{getTranslation('checkout', language)}</Text>
         </TouchableOpacity>
       </View>
     </View>

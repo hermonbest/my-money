@@ -11,17 +11,17 @@ export const handleSupabaseError = (error, context = 'Operation') => {
   console.error(`${context} Supabase error:`, error);
   
   if (error.code === 'PGRST116') {
-    return 'No data found';
+    return 'noDataFound';
   } else if (error.code === '23505') {
-    return 'This item already exists';
+    return 'itemAlreadyExists';
   } else if (error.code === '23503') {
-    return 'Cannot delete item - it is being used elsewhere';
+    return 'cannotDeleteItemInUse';
   } else if (error.code === '42501') {
-    return 'You do not have permission to perform this action';
+    return 'noPermission';
   } else if (error.message?.includes('JWT')) {
-    return 'Session expired. Please log in again';
+    return 'sessionExpired';
   } else if (error.message?.includes('network')) {
-    return 'Network error. Please check your connection';
+    return 'networkError';
   } else {
     return error.message || `${context} failed. Please try again`;
   }
@@ -37,13 +37,13 @@ export const handleInventoryError = (error, context = 'Inventory operation') => 
   console.error(`${context} error:`, error);
   
   if (error.message?.includes('Insufficient stock')) {
-    return 'Insufficient stock for this item';
+    return 'insufficientStockForItem';
   } else if (error.message?.includes('Item not found')) {
-    return 'Item not found in inventory';
+    return 'itemNotFoundInInventory';
   } else if (error.message?.includes('quantity')) {
-    return 'Invalid quantity. Please enter a positive number';
+    return 'invalidQuantity';
   } else if (error.message?.includes('price')) {
-    return 'Invalid price. Please enter a valid amount';
+    return 'invalidPrice';
   } else {
     return handleSupabaseError(error, context);
   }
@@ -59,13 +59,13 @@ export const handleSaleError = (error, context = 'Sale operation') => {
   console.error(`${context} error:`, error);
   
   if (error.message?.includes('Insufficient stock')) {
-    return 'Cannot complete sale - insufficient stock for one or more items';
+    return 'cannotCompleteSaleInsufficientStock';
   } else if (error.message?.includes('Item not found')) {
-    return 'One or more items are no longer available';
+    return 'itemsNoLongerAvailable';
   } else if (error.message?.includes('payment')) {
-    return 'Invalid payment method';
+    return 'invalidPaymentMethod';
   } else if (error.message?.includes('customer')) {
-    return 'Invalid customer information';
+    return 'invalidCustomerInformation';
   } else {
     return handleSupabaseError(error, context);
   }
@@ -81,17 +81,17 @@ export const handleAuthError = (error, context = 'Authentication') => {
   console.error(`${context} error:`, error);
   
   if (error.message?.includes('Invalid login credentials')) {
-    return 'Invalid email or password';
+    return 'invalidEmailOrPassword';
   } else if (error.message?.includes('Email not confirmed')) {
-    return 'Please check your email and confirm your account';
+    return 'pleaseCheckEmailAndConfirm';
   } else if (error.message?.includes('User already registered')) {
-    return 'An account with this email already exists';
+    return 'accountWithEmailExists';
   } else if (error.message?.includes('Password should be at least')) {
-    return 'Password must be at least 6 characters long';
+    return 'passwordMinLength';
   } else if (error.message?.includes('JWT')) {
-    return 'Session expired. Please log in again';
+    return 'sessionExpired';
   } else {
-    return error.message || 'Authentication failed. Please try again';
+    return error.message || 'authenticationFailed';
   }
 };
 
@@ -105,13 +105,13 @@ export const handleNetworkError = (error, context = 'Network operation') => {
   console.error(`${context} network error:`, error);
   
   if (error.message?.includes('Network request failed')) {
-    return 'Network error. Please check your internet connection';
+    return 'networkErrorCheckConnection';
   } else if (error.message?.includes('timeout')) {
-    return 'Request timed out. Please try again';
+    return 'requestTimedOut';
   } else if (error.message?.includes('offline')) {
-    return 'You are offline. Some features may not be available';
+    return 'youAreOffline';
   } else {
-    return 'Network error. Please check your connection and try again';
+    return 'networkErrorCheckConnectionAndTryAgain';
   }
 };
 
@@ -127,24 +127,24 @@ export const showErrorAlert = (titleOrError, message = null, onRetry = null, onC
   
   // Handle object format: showErrorAlert({ title, message, action })
   if (typeof titleOrError === 'object' && titleOrError !== null) {
-    title = titleOrError.title || 'Error';
-    msg = titleOrError.message || 'An error occurred';
+    title = titleOrError.title || 'error';
+    msg = titleOrError.message || 'anErrorOccurred';
     // If the object has an action property, we can use it for retry logic
     if (titleOrError.action === 'Retry' && onRetry === null && titleOrError.onRetry) {
       onRetry = titleOrError.onRetry;
     }
   } else {
     // Handle string format: showErrorAlert(title, message)
-    title = titleOrError || 'Error';
-    msg = message || 'An error occurred';
+    title = titleOrError || 'error';
+    msg = message || 'anErrorOccurred';
   }
   
   const buttons = [
-    { text: 'OK', onPress: onCancel }
+    { text: 'ok', onPress: onCancel }
   ];
   
   if (onRetry) {
-    buttons.unshift({ text: 'Retry', onPress: onRetry });
+    buttons.unshift({ text: 'retry', onPress: onRetry });
   }
   
   Alert.alert(title, msg, buttons);
@@ -157,7 +157,7 @@ export const showErrorAlert = (titleOrError, message = null, onRetry = null, onC
  * @param {Function} onPress - Callback function
  */
 export const showSuccessAlert = (title, message, onPress = null) => {
-  Alert.alert(title, message, [{ text: 'OK', onPress }]);
+  Alert.alert(title, message, [{ text: 'ok', onPress }]);
 };
 
 /**
@@ -172,8 +172,8 @@ export const showConfirmationAlert = (title, message, onConfirm, onCancel = null
     title,
     message,
     [
-      { text: 'Cancel', onPress: onCancel, style: 'cancel' },
-      { text: 'Confirm', onPress: onConfirm, style: 'destructive' }
+      { text: 'cancel', onPress: onCancel, style: 'cancel' },
+      { text: 'confirm', onPress: onConfirm, style: 'destructive' }
     ]
   );
 };

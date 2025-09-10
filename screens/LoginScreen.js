@@ -13,8 +13,11 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations';
 
 export default function LoginScreen({ navigation }) {
+  const { language } = useLanguage(); // Use language context
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [invitationCode, setInvitationCode] = useState('');
@@ -25,12 +28,12 @@ export default function LoginScreen({ navigation }) {
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(getTranslation('error', language), getTranslation('required', language));
       return;
     }
 
     if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert(getTranslation('error', language), getTranslation('invalidEmail', language));
       return;
     }
 
@@ -42,11 +45,11 @@ export default function LoginScreen({ navigation }) {
       });
 
       if (error) {
-        Alert.alert('Sign In Error', error.message);
+        Alert.alert(getTranslation('error', language), error.message);
       } else {
-        Alert.alert('Success', 'Signed in successfully!', [
+        Alert.alert(getTranslation('success', language), getTranslation('signIn', language), [
           {
-            text: 'OK',
+            text: getTranslation('ok', language),
             onPress: () => {
               if (navigation && navigation.navigate) {
                 navigation.navigate('MainApp');
@@ -58,7 +61,7 @@ export default function LoginScreen({ navigation }) {
         ]);
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      Alert.alert(getTranslation('error', language), getTranslation('networkError', language));
       console.error('Sign in error:', error);
     } finally {
       setLoading(false);
@@ -67,17 +70,17 @@ export default function LoginScreen({ navigation }) {
 
   const handleSignUp = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(getTranslation('error', language), getTranslation('required', language));
       return;
     }
 
     if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert(getTranslation('error', language), getTranslation('invalidEmail', language));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      Alert.alert(getTranslation('error', language), getTranslation('weakPassword', language));
       return;
     }
 
@@ -94,10 +97,10 @@ export default function LoginScreen({ navigation }) {
         });
 
         if (error) {
-          Alert.alert('Sign Up Error', error.message);
+          Alert.alert(getTranslation('error', language), error.message);
         } else {
           // Wait for authentication to complete before showing role selection
-          console.log('Signup successful, waiting for auth to complete...');
+          console.log(getTranslation('loading', language));
           
           // Wait a moment for the auth state to update
           await new Promise(resolve => setTimeout(resolve, 1500));
@@ -105,7 +108,7 @@ export default function LoginScreen({ navigation }) {
           // Verify user is authenticated before showing role selection
           const { data: { user }, error: authError } = await supabase.auth.getUser();
           if (authError || !user) {
-            Alert.alert('Error', 'Please try signing up again.');
+            Alert.alert(getTranslation('error', language), getTranslation('tryAgain', language));
             return;
           }
           
@@ -114,7 +117,7 @@ export default function LoginScreen({ navigation }) {
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      Alert.alert(getTranslation('error', language), getTranslation('networkError', language));
       console.error('Sign up error:', error);
     } finally {
       setLoading(false);
@@ -145,11 +148,11 @@ export default function LoginScreen({ navigation }) {
 
         if (registrationData.success) {
           Alert.alert(
-            'Success!', 
-            `Welcome to ${registrationData.store_name}! You've been registered as a worker.`,
+            getTranslation('success', language), 
+            `${getTranslation('welcomeBack', language)} ${registrationData.store_name}! ${getTranslation('workerInvitations', language)}.`,
             [
               {
-                text: 'Continue',
+                text: getTranslation('continue', language),
                 onPress: () => {
                   // The app will automatically detect the worker role and navigate appropriately
                 }
@@ -211,7 +214,7 @@ export default function LoginScreen({ navigation }) {
           user_id: user.id,
           email: user.email,
           role: role,
-          business_name: role === 'individual' ? 'My Business' : 'My Store',
+          business_name: role === 'individual' ? getTranslation('myBusiness', language) : getTranslation('myStore', language),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -229,11 +232,11 @@ export default function LoginScreen({ navigation }) {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       Alert.alert(
-        'Success!',
-        `Welcome! You've been set up as a ${role === 'individual' ? 'Individual Business Owner' : 'Multi-Store Owner'}.`,
+        getTranslation('success', language),
+        `${getTranslation('welcomeBack', language)}! ${getTranslation('profileCreated', language)} ${role === 'individual' ? getTranslation('individual', language) : getTranslation('owner', language)}.`,
         [
           {
-            text: 'Continue',
+            text: getTranslation('continue', language),
             onPress: () => {
               setShowRoleSelection(false);
               // The app will automatically detect the new profile and navigate to main app
@@ -245,15 +248,15 @@ export default function LoginScreen({ navigation }) {
 
     } catch (error) {
       console.error('Error creating profile:', error);
-      let errorMessage = 'Failed to set up your account. Please try again.';
+      let errorMessage = getTranslation('operationFailed', language);
       
       if (error.message.includes('User not authenticated')) {
-        errorMessage = 'Please sign in again and try selecting your role.';
+        errorMessage = getTranslation('authError', language);
       } else if (error.code === '23503') {
-        errorMessage = 'Account setup failed. Please sign out and sign in again, then try selecting your role.';
+        errorMessage = getTranslation('accountSetupFailed', language);
       }
       
-      Alert.alert('Error', errorMessage);
+      Alert.alert(getTranslation('error', language), errorMessage);
     } finally {
       setLoading(false);
     }
@@ -262,26 +265,26 @@ export default function LoginScreen({ navigation }) {
   const roles = [
     {
       id: 'individual',
-      title: 'Individual Business Owner',
-      description: 'Manage your own business with full control over inventory, sales, and expenses.',
+      title: getTranslation('individualBusinessOwner', language),
+      description: getTranslation('individualBusinessDesc', language),
       icon: 'person',
       features: [
-        'Track inventory and sales',
-        'Manage expenses',
-        'View analytics and reports',
-        'Full business management'
+        getTranslation('trackInventory', language),
+        getTranslation('manageExpenses', language),
+        getTranslation('viewAnalytics', language),
+        getTranslation('fullBusinessManagement', language)
       ]
     },
     {
       id: 'owner',
-      title: 'Multi-Store Owner',
-      description: 'Manage multiple stores and invite workers to help with operations.',
+      title: getTranslation('multiStoreOwner', language),
+      description: getTranslation('multiStoreDesc', language),
       icon: 'store',
       features: [
-        'Manage multiple stores',
-        'Invite and manage workers',
-        'Store-specific analytics',
-        'Worker oversight and permissions'
+        getTranslation('manageMultipleStores', language),
+        getTranslation('inviteWorkers', language),
+        getTranslation('storeSpecificAnalytics', language),
+        getTranslation('workerOversight', language)
       ]
     }
   ];
@@ -291,10 +294,12 @@ export default function LoginScreen({ navigation }) {
     return (
       <ScrollView style={styles.container}>
         <View style={styles.header}>
-          <MaterialIcons name="account-circle" size={80} color="#2563eb" />
-          <Text style={styles.title}>Choose Your Role</Text>
+          <View style={styles.iconCircle}>
+            <MaterialIcons name="account-circle" size={60} color="#2563eb" />
+          </View>
+          <Text style={styles.title}>{getTranslation('chooseYourRole', language)}</Text>
           <Text style={styles.subtitle}>
-            Select how you'd like to use this business management app
+            {getTranslation('selectHowToUse', language)}
           </Text>
         </View>
 
@@ -310,11 +315,13 @@ export default function LoginScreen({ navigation }) {
               disabled={loading}
             >
               <View style={styles.roleHeader}>
-                <MaterialIcons 
-                  name={role.icon} 
-                  size={40} 
-                  color={selectedRole === role.id ? "#2563eb" : "#6b7280"} 
-                />
+                <View style={[styles.iconContainer, selectedRole === role.id && styles.selectedIconContainer]}>
+                  <MaterialIcons 
+                    name={role.icon} 
+                    size={28} 
+                    color={selectedRole === role.id ? "#ffffff" : "#6b7280"} 
+                  />
+                </View>
                 <View style={styles.roleInfo}>
                   <Text style={[
                     styles.roleTitle,
@@ -331,7 +338,7 @@ export default function LoginScreen({ navigation }) {
               <View style={styles.featuresList}>
                 {role.features.map((feature, index) => (
                   <View key={index} style={styles.featureItem}>
-                    <MaterialIcons name="check" size={16} color="#10b981" />
+                    <MaterialIcons name="check-circle" size={16} color="#10b981" />
                     <Text style={styles.featureText}>{feature}</Text>
                   </View>
                 ))}
@@ -348,7 +355,7 @@ export default function LoginScreen({ navigation }) {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            You can change your role later in settings
+            {getTranslation('changeRoleLater', language)}
           </Text>
         </View>
       </ScrollView>
@@ -362,17 +369,19 @@ export default function LoginScreen({ navigation }) {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <MaterialIcons name="account-balance-wallet" size={80} color="#2563eb" />
-          <Text style={styles.title}>My Money</Text>
-          <Text style={styles.subtitle}>Business Management</Text>
+          <View style={styles.iconCircle}>
+            <MaterialIcons name="account-balance-wallet" size={60} color="#2563eb" />
+          </View>
+          <Text style={styles.title}>{getTranslation('myMoney', language)}</Text>
+          <Text style={styles.subtitle}>{getTranslation('businessManagement', language)}</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
-            <MaterialIcons name="email" size={24} color="#6b7280" style={styles.inputIcon} />
+            <MaterialIcons name="email" size={20} color="#6b7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={getTranslation('enterEmail', language)}
               placeholderTextColor="#9ca3af"
               value={email}
               onChangeText={setEmail}
@@ -384,10 +393,10 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           <View style={styles.inputContainer}>
-            <MaterialIcons name="lock" size={24} color="#6b7280" style={styles.inputIcon} />
+            <MaterialIcons name="lock" size={20} color="#6b7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Password"
+              placeholder={getTranslation('enterPassword', language)}
               placeholderTextColor="#9ca3af"
               value={password}
               onChangeText={setPassword}
@@ -398,11 +407,11 @@ export default function LoginScreen({ navigation }) {
             />
           </View>
 
-          <View style={styles.inputContainer}>
-            <MaterialIcons name="vpn-key" size={24} color="#6b7280" style={styles.inputIcon} />
+          <View style={[styles.inputContainer, styles.invitationInput]}>
+            <MaterialIcons name="vpn-key" size={20} color="#6b7280" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Invitation Code (for workers only)"
+              placeholder={getTranslation('invitationCode', language)}
               placeholderTextColor="#9ca3af"
               value={invitationCode}
               onChangeText={setInvitationCode}
@@ -421,8 +430,8 @@ export default function LoginScreen({ navigation }) {
               <ActivityIndicator color="#ffffff" />
             ) : (
               <>
-                <MaterialIcons name="login" size={24} color="#ffffff" />
-                <Text style={styles.buttonText}>Sign In</Text>
+                <MaterialIcons name="login" size={20} color="#ffffff" />
+                <Text style={styles.buttonText}>{getTranslation('signIn', language)}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -436,8 +445,8 @@ export default function LoginScreen({ navigation }) {
               <ActivityIndicator color="#2563eb" />
             ) : (
               <>
-                <MaterialIcons name="person-add" size={24} color="#2563eb" />
-                <Text style={[styles.buttonText, styles.signUpButtonText]}>Sign Up</Text>
+                <MaterialIcons name="person-add" size={20} color="#2563eb" />
+                <Text style={[styles.buttonText, styles.signUpButtonText]}>{getTranslation('signUp', language)}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -445,7 +454,7 @@ export default function LoginScreen({ navigation }) {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Secure your business data with encrypted authentication
+            {getTranslation('secureBusinessData', language)}
           </Text>
         </View>
       </ScrollView>
@@ -461,22 +470,31 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
+  },
+  iconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     color: '#1f2937',
-    marginTop: 16,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
-    marginTop: 4,
+    color: '#64748b',
+    textAlign: 'center',
   },
   form: {
     width: '100%',
@@ -487,10 +505,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
     marginBottom: 16,
     paddingHorizontal: 16,
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 1,
@@ -499,23 +517,27 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  invitationInput: {
+    marginBottom: 24,
+  },
   inputIcon: {
     marginRight: 12,
   },
   input: {
     flex: 1,
-    height: 56,
+    height: 52,
     fontSize: 16,
     color: '#1f2937',
+    paddingVertical: 8,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
+    height: 52,
     borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -523,6 +545,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    transition: 'all 0.2s ease',
   },
   signInButton: {
     backgroundColor: '#2563eb',
@@ -533,7 +556,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   buttonText: {
     fontSize: 16,
@@ -546,17 +569,17 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 24,
   },
   footerText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
   },
   // Role selection styles
   rolesContainer: {
-    padding: 20,
+    padding: 16,
     gap: 16,
   },
   roleCard: {
@@ -564,41 +587,54 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 2,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
+    borderColor: '#e2e8f0',
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
+    position: 'relative',
+    overflow: 'hidden',
   },
   selectedRoleCard: {
     borderColor: '#2563eb',
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#f0f9ff',
   },
   roleHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 16,
   },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedIconContainer: {
+    backgroundColor: '#2563eb',
+  },
   roleInfo: {
     flex: 1,
     marginLeft: 16,
   },
   roleTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   selectedRoleTitle: {
     color: '#2563eb',
   },
   roleDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#64748b',
     lineHeight: 20,
   },
   featuresList: {
@@ -611,7 +647,7 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#334155',
     flex: 1,
   },
   loadingOverlay: {
@@ -626,4 +662,3 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
 });
-

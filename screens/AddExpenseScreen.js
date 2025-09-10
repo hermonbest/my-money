@@ -18,9 +18,13 @@ import { offlineManager } from "../utils/OfflineManager";
 import { offlineDataService } from "../utils/OfflineDataService";
 import { getCurrentUser } from "../utils/authUtils";
 import { validateWithSchema, showValidationErrors } from "../utils/inputValidation";
+import { useLanguage } from "../contexts/LanguageContext"; // Import useLanguage hook
+import { getTranslation } from "../utils/translations"; // Import getTranslation function
+import { formatCurrency } from "../utils/helpers"; // Import formatting helpers
 
 export default function AddExpenseScreen({ navigation }) {
   const { selectedStore, userRole, validateOperation } = useStore();
+  const { language } = useLanguage(); // Use language context
   // Get network status directly from offlineManager
   const isOnline = offlineManager.isConnected();
   const [formData, setFormData] = useState({
@@ -45,17 +49,17 @@ export default function AddExpenseScreen({ navigation }) {
     // Use comprehensive store validation
     const validation = validateOperation('add_expense');
     if (!validation.isValid) {
-      Alert.alert("Access Denied", validation.error);
+      Alert.alert(getTranslation('accessDenied', language), validation.error);
       return false;
     }
     
     // Use standardized input validation
     const validationResult = validateWithSchema('expense', formData, {
-      title: 'Expense Title',
-      category: 'Category', 
-      amount: 'Amount',
-      vendor: 'Vendor',
-      expense_date: 'Expense Date'
+      title: getTranslation('expenseTitle', language),
+      category: getTranslation('category', language), 
+      amount: getTranslation('amount', language),
+      vendor: getTranslation('vendor', language),
+      expense_date: getTranslation('expenseDate', language)
     });
     
     if (!validationResult.isValid) {
@@ -75,7 +79,7 @@ export default function AddExpenseScreen({ navigation }) {
       const { user, error: userError } = await getCurrentUser();
       
       if (userError || !user) {
-        throw new Error('User not authenticated');
+        throw new Error(getTranslation('userNotAuthenticated', language));
       }
       
       console.log('Current user ID:', user.id);
@@ -97,19 +101,19 @@ export default function AddExpenseScreen({ navigation }) {
       
       console.log('Inserted expense:', result);
       
-      const offlineMessage = !isOnline ? '\n\n⚠️ This expense will sync when you\'re back online.' : '';
-      Alert.alert("Success", `Expense recorded successfully!${offlineMessage}`);
+      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('expenseWillSyncWhenOnline', language)}` : '';
+      Alert.alert(getTranslation('success', language), `${getTranslation('expenseRecordedSuccessfully', language)}${offlineMessage}`);
       
       if (navigation && navigation.goBack) {
         navigation.goBack();
       } else {
         // Navigation fallback - this is expected in some contexts
-        console.log('Navigation goBack not available - expense saved successfully');
+        console.log(getTranslation('navigationGoBackNotAvailableExpenseSaved', language));
       }
     } catch (error) {
-      console.error("Error recording expense:", error);
-      const offlineMessage = !isOnline ? '\n\n⚠️ You\'re currently offline. The expense will be recorded when you\'re back online.' : '';
-      Alert.alert("Expense Processing", `Expense has been queued for processing.${offlineMessage}`);
+      console.error(getTranslation('errorRecordingExpense', language), error);
+      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('currentlyOfflineExpenseWillBeRecorded', language)}` : '';
+      Alert.alert(getTranslation('expenseProcessing', language), `${getTranslation('expenseQueuedForProcessing', language)}${offlineMessage}`);
     } finally {
       setLoading(false);
     }
@@ -137,6 +141,18 @@ export default function AddExpenseScreen({ navigation }) {
     </View>
   );
 
+  // Function to get translated payment method name
+  const getPaymentMethodTranslation = (method) => {
+    switch (method) {
+      case 'cash': return getTranslation('cash', language);
+      case 'card': return getTranslation('card', language);
+      case 'bank_transfer': return getTranslation('bankTransfer', language);
+      case 'check': return getTranslation('check', language);
+      case 'other': return getTranslation('other', language);
+      default: return method.charAt(0).toUpperCase() + method.slice(1).replace('_', ' ');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -147,51 +163,51 @@ export default function AddExpenseScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add Expense</Text>
+          <Text style={styles.headerTitle}>{getTranslation('addExpense', language)}</Text>
           <Text style={styles.headerSubtitle}>
-            Record a new expense transaction
+            {getTranslation('recordNewExpenseTransaction', language)}
           </Text>
           {!isOnline && (
             <View style={styles.offlineIndicator}>
               <MaterialIcons name="wifi-off" size={16} color="#ef4444" />
-              <Text style={styles.offlineText}>Offline Mode - Will sync when online</Text>
+              <Text style={styles.offlineText}>{getTranslation('offlineModeWillSyncWhenOnline', language)}</Text>
             </View>
           )}
         </View>
 
         <View style={styles.form}>
           {renderInputField(
-            "Title *",
+            `${getTranslation('title', language)} *`,
             "title",
-            "Enter expense title",
+            getTranslation('enterExpenseTitle', language),
           )}
           {renderInputField(
-            "Category *",
+            `${getTranslation('category', language)} *`,
             "category",
-            "Enter category (e.g., Rent, Utilities, Supplies)",
+            getTranslation('enterCategoryRentUtilitiesSupplies', language),
           )}
           {renderInputField(
-            "Amount (ETB) *",
+            `${getTranslation('amount', language)} (ETB) *`,
             "amount",
-            "Enter amount in ETB",
+            getTranslation('enterAmountInETB', language),
             "decimal-pad",
           )}
           {renderInputField(
-            "Vendor",
+            getTranslation('vendor', language),
             "vendor",
-            "Enter vendor/supplier name (optional)",
+            getTranslation('enterVendorSupplierNameOptional', language),
           )}
           {renderInputField(
-            "Description",
+            getTranslation('description', language),
             "description",
-            "Additional details about this expense",
+            getTranslation('additionalDetailsAboutThisExpense', language),
             "default",
             true,
           )}
           
           {/* Payment Method Selector */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Payment Method</Text>
+            <Text style={styles.inputLabel}>{getTranslation('paymentMethod', language)}</Text>
             <View style={styles.paymentMethodContainer}>
               {['cash', 'card', 'bank_transfer', 'check', 'other'].map((method) => (
                 <TouchableOpacity
@@ -206,7 +222,7 @@ export default function AddExpenseScreen({ navigation }) {
                     styles.paymentMethodText,
                     formData.payment_method === method && styles.paymentMethodTextActive
                   ]}>
-                    {method.charAt(0).toUpperCase() + method.slice(1).replace('_', ' ')}
+                    {getPaymentMethodTranslation(method)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -215,55 +231,55 @@ export default function AddExpenseScreen({ navigation }) {
 
           {/* Date Picker */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Expense Date</Text>
+            <Text style={styles.inputLabel}>{getTranslation('expenseDate', language)}</Text>
             <TextInput
               style={styles.input}
               value={formData.expense_date}
               onChangeText={(value) => handleInputChange('expense_date', value)}
-              placeholder="YYYY-MM-DD"
+              placeholder={getTranslation('enterDateInYYYYMMDDFormat', language)}
             />
           </View>
         </View>
 
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Expense Summary</Text>
+          <Text style={styles.summaryTitle}>{getTranslation('expenseSummary', language)}</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Title:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('title', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {formData.title || "Not entered"}
+                {formData.title || getTranslation('notEntered', language)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Category:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('category', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {formData.category || "Not entered"}
+                {formData.category || getTranslation('notEntered', language)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Amount:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('amount', language)}:</Text>
               <Text style={styles.summaryValue}>
                 {formData.amount
-                  ? `ETB ${parseFloat(formData.amount).toFixed(2)}`
-                  : "ETB 0.00"}
+                  ? formatCurrency(parseFloat(formData.amount))
+                  : formatCurrency(0)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Payment Method:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('paymentMethod', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {formData.payment_method.charAt(0).toUpperCase() + formData.payment_method.slice(1).replace('_', ' ')}
+                {getPaymentMethodTranslation(formData.payment_method)}
               </Text>
             </View>
             {formData.vendor && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Vendor:</Text>
+                <Text style={styles.summaryLabel}>{getTranslation('vendor', language)}:</Text>
                 <Text style={styles.summaryValue}>
                   {formData.vendor}
                 </Text>
               </View>
             )}
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('date', language)}:</Text>
               <Text style={styles.summaryValue}>
                 {formData.expense_date}
               </Text>
@@ -280,12 +296,12 @@ export default function AddExpenseScreen({ navigation }) {
             if (navigation && navigation.goBack) {
               navigation.goBack();
             } else {
-              console.log('Navigation goBack not available');
+              console.log(getTranslation('navigationGoBackNotAvailable', language));
             }
           }}
           disabled={loading}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
@@ -293,11 +309,11 @@ export default function AddExpenseScreen({ navigation }) {
           disabled={loading}
         >
           {loading ? (
-            <Text style={styles.saveButtonText}>Recording...</Text>
+            <Text style={styles.saveButtonText}>{getTranslation('recording', language)}...</Text>
           ) : (
             <>
               <MaterialIcons name="check" size={20} color="#ffffff" />
-              <Text style={styles.saveButtonText}>Record Expense</Text>
+              <Text style={styles.saveButtonText}>{getTranslation('recordExpense', language)}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -309,162 +325,134 @@ export default function AddExpenseScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f9fafb",
   },
   scrollView: {
-    flex: 1,
+    padding: 20,
   },
   header: {
-    backgroundColor: "#ffffff",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    marginBottom: 20,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#1f2937",
-    marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: "#6b7280",
+    fontSize: 14,
+    color: "#4b5563",
+  },
+  offlineIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  offlineText: {
+    marginLeft: 5,
+    color: "#ef4444",
   },
   form: {
-    padding: 20,
-  },
-  inputContainer: {
     marginBottom: 20,
   },
+  inputContainer: {
+    marginBottom: 10,
+  },
   inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 8,
+    fontSize: 14,
+    color: "#1f2937",
+    marginBottom: 5,
   },
   input: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
+    height: 40,
     borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    color: "#1f2937",
+    borderWidth: 1,
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    backgroundColor: "#ffffff",
   },
   multilineInput: {
-    height: 100,
+    height: 80,
     textAlignVertical: "top",
   },
+  paymentMethodContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  paymentMethodButton: {
+    padding: 10,
+    margin: 5,
+    borderRadius: 5,
+    backgroundColor: "#e5e7eb",
+  },
+  paymentMethodButtonActive: {
+    backgroundColor: "#1d4ed8",
+  },
+  paymentMethodText: {
+    color: "#4b5563",
+  },
+  paymentMethodTextActive: {
+    color: "#ffffff",
+  },
   summary: {
-    padding: 20,
-    paddingTop: 0,
+    marginBottom: 20,
   },
   summaryTitle: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#1f2937",
-    marginBottom: 16,
+    marginBottom: 10,
   },
   summaryCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    padding: 15,
+    borderRadius: 5,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#d1d5db",
   },
   summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 5,
   },
   summaryLabel: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#4b5563",
   },
   summaryValue: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "bold",
     color: "#1f2937",
-    flex: 1,
-    textAlign: "right",
   },
   footer: {
-    backgroundColor: "#ffffff",
-    padding: 20,
     flexDirection: "row",
-    gap: 12,
+    justifyContent: "space-between",
+    padding: 15,
+    backgroundColor: "#ffffff",
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderTopColor: "#d1d5db",
   },
   cancelButton: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    alignItems: "center",
+    backgroundColor: "#eab308",
+    padding: 10,
+    borderRadius: 5,
   },
   cancelButtonText: {
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#6b7280",
   },
   saveButton: {
-    flex: 2,
-    backgroundColor: "#ef4444",
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: "#1d4ed8",
+    padding: 10,
+    borderRadius: 5,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
   },
   saveButtonDisabled: {
-    backgroundColor: "#9ca3af",
+    backgroundColor: "#6b7280",
   },
   saveButtonText: {
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginLeft: 8,
-  },
-  paymentMethodContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  paymentMethodButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    backgroundColor: "#ffffff",
-  },
-  paymentMethodButtonActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
-  },
-  paymentMethodText: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  paymentMethodTextActive: {
-    color: "#ffffff",
-  },
-  offlineIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fef2f2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  offlineText: {
-    fontSize: 12,
-    color: '#ef4444',
-    fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: 5,
   },
 });

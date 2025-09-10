@@ -77,12 +77,12 @@ export default function ExpensesScreen({ navigation }) {
 
   const handleDeleteExpense = (expense) => {
     Alert.alert(
-      "Delete Expense",
-      `Are you sure you want to delete "${expense.title}"?`,
+      getTranslation('deleteExpense', language),
+      `${getTranslation('confirmDeleteExpense', language)} "${expense.title}"?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: getTranslation('cancel', language), style: "cancel" },
         {
-          text: "Delete",
+          text: getTranslation('delete', language),
           style: "destructive",
           onPress: async () => {
             try {
@@ -90,7 +90,7 @@ export default function ExpensesScreen({ navigation }) {
               const { user, error: userError } = await getCurrentUser();
               
               if (userError || !user) {
-                throw new Error('User not authenticated');
+                throw new Error(getTranslation('userNotAuthenticated', language));
               }
 
               const { error } = await supabase
@@ -101,11 +101,11 @@ export default function ExpensesScreen({ navigation }) {
 
               if (error) throw error;
               
-              console.log('Deleted expense:', expense.id);
+              console.log(getTranslation('deletedExpense', language), expense.id);
               await loadExpenses();
             } catch (error) {
-              console.error("Error deleting expense:", error);
-              Alert.alert("Error", `Failed to delete expense: ${error.message}`);
+              console.error(getTranslation('errorDeletingExpense', language), error);
+              Alert.alert(getTranslation('error', language), `${getTranslation('failedToDeleteExpense', language)}: ${error.message}`);
             }
           },
         },
@@ -118,10 +118,10 @@ export default function ExpensesScreen({ navigation }) {
       <View style={styles.expenseHeader}>
         <View style={styles.expenseInfo}>
           <Text style={styles.expenseTitle}>
-            {item.title || "Expense"}
+            {item.title || getTranslation('expense', language)}
           </Text>
           <Text style={styles.expenseCategory}>
-            {item.category || "General"}
+            {item.category || getTranslation('general', language)}
           </Text>
         </View>
         <View style={styles.expenseAmount}>
@@ -133,26 +133,26 @@ export default function ExpensesScreen({ navigation }) {
 
       <View style={styles.expenseDetails}>
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Date:</Text>
+          <Text style={styles.detailLabel}>{getTranslation('date', language)}:</Text>
           <Text style={styles.detailValue}>
             {new Date(item.expense_date).toLocaleDateString()}
           </Text>
         </View>
         {item.payment_method && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Payment Method:</Text>
+            <Text style={styles.detailLabel}>{getTranslation('paymentMethod', language)}:</Text>
             <Text style={styles.detailValue}>{item.payment_method}</Text>
           </View>
         )}
         {item.vendor && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Vendor:</Text>
+            <Text style={styles.detailLabel}>{getTranslation('vendor', language)}:</Text>
             <Text style={styles.detailValue}>{item.vendor}</Text>
           </View>
         )}
         {item.description && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Description:</Text>
+            <Text style={styles.detailLabel}>{getTranslation('description', language)}:</Text>
             <Text style={styles.detailValue}>{item.description}</Text>
           </View>
         )}
@@ -170,16 +170,16 @@ export default function ExpensesScreen({ navigation }) {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <MaterialIcons name="account-balance-wallet" size={64} color="#9ca3af" />
-      <Text style={styles.emptyTitle}>No Expenses Recorded</Text>
+      <Text style={styles.emptyTitle}>{getTranslation('noExpensesRecorded', language)}</Text>
       <Text style={styles.emptySubtitle}>
-        Record your first expense to start tracking costs
+        {getTranslation('recordFirstExpense', language)}
       </Text>
       <TouchableOpacity
         style={styles.addFirstButton}
         onPress={() => navigation && navigation.navigate ? navigation.navigate("AddExpense") : console.log('Navigation not available')}
       >
         <MaterialIcons name="add" size={20} color="#ffffff" />
-        <Text style={styles.addFirstButtonText}>Record First Expense</Text>
+        <Text style={styles.addFirstButtonText}>{getTranslation('recordFirstExpenseButton', language)}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -190,15 +190,15 @@ export default function ExpensesScreen({ navigation }) {
       <View style={[styles.container, styles.loadingContainer]}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Expense Tracking</Text>
+            <Text style={styles.headerTitle}>{getTranslation('expenseTracking', language)}</Text>
             <Text style={styles.headerSubtitle}>
-              Track and manage your business expenses
+              {getTranslation('trackExpenses', language)}
             </Text>
           </View>
         </View>
         <View style={styles.loadingContent}>
           <MaterialIcons name="account-balance-wallet" size={64} color="#2563eb" />
-          <Text style={styles.loadingText}>Loading expenses...</Text>
+          <Text style={styles.loadingText}>{getTranslation('loading', language)} {getTranslation('expenses', language).toLowerCase()}...</Text>
         </View>
       </View>
     );
@@ -210,25 +210,23 @@ export default function ExpensesScreen({ navigation }) {
       <View style={[styles.container, styles.errorContainer]}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Expense Tracking</Text>
+            <Text style={styles.headerTitle}>{getTranslation('expenseTracking', language)}</Text>
             <Text style={styles.headerSubtitle}>
-              Track and manage your business expenses
+              {getTranslation('trackExpenses', language)}
             </Text>
           </View>
         </View>
         <View style={styles.errorContent}>
           <MaterialIcons name="error-outline" size={64} color="#ef4444" />
-          <Text style={styles.errorTitle}>Error Loading Expenses</Text>
+          <Text style={styles.errorTitle}>{getTranslation('errorLoadingExpenses', language)}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadExpenses}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{getTranslation('retry', language)}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
-
-
 
   return (
     <View style={styles.container}>
@@ -252,7 +250,7 @@ export default function ExpensesScreen({ navigation }) {
           {!isOnline && (
             <View style={styles.offlineIndicator}>
               <MaterialIcons name="wifi-off" size={16} color="#ef4444" />
-              <Text style={styles.offlineText}>Offline Mode</Text>
+              <Text style={styles.offlineText}>{getTranslation('offlineMode', language)}</Text>
             </View>
           )}
         </View>
@@ -260,7 +258,7 @@ export default function ExpensesScreen({ navigation }) {
           style={styles.addButton}
           onPress={() => {
             if (userRole === 'worker') {
-              Alert.alert('Access Denied', 'Workers can view expenses but cannot add new ones. Please contact your store owner.');
+              Alert.alert(getTranslation('accessDenied', language), getTranslation('workersCannotAddExpenses', language));
               return;
             }
             navigation && navigation.navigate ? navigation.navigate("AddExpense") : console.log('Navigation not available');
@@ -295,145 +293,176 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+  },
   header: {
-    backgroundColor: "#ffffff",
-    padding: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: 20,
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginBottom: 8,
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   storeSelectorButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     backgroundColor: "#eff6ff",
-    borderRadius: 6,
+    borderRadius: 8,
     alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
   },
   storeSelectorText: {
-    fontSize: 12,
-    color: "#2563eb",
-    marginLeft: 4,
+    fontSize: 14,
+    color: "#3b82f6",
+    marginLeft: 6,
     fontWeight: "500",
   },
   addButton: {
-    backgroundColor: "#2563eb",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: "#3b82f6",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   listContainer: {
     padding: 20,
   },
   expenseCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#e2e8f0",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   expenseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   expenseInfo: {
     flex: 1,
   },
   expenseTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#1f2937",
-    marginBottom: 4,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 6,
   },
   expenseCategory: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   expenseAmount: {
     alignItems: "flex-end",
   },
   amountText: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "700",
     color: "#ef4444",
   },
   expenseDetails: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   detailLabel: {
-    fontSize: 14,
-    color: "#6b7280",
+    fontSize: 15,
+    color: "#64748b",
+    fontWeight: "500",
   },
   detailValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#374151",
+    color: "#0f172a",
   },
   deleteButton: {
     alignSelf: "flex-end",
-    padding: 8,
+    padding: 10,
+    backgroundColor: "#fef2f2",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#fecaca",
   },
   emptyState: {
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#374151",
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 20,
+    marginBottom: 10,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#64748b",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 30,
+    lineHeight: 24,
   },
   addFirstButton: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "#3b82f6",
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addFirstButtonText: {
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  loadingContainer: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   loadingContent: {
     flex: 1,
@@ -442,37 +471,46 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#64748b",
     marginTop: 16,
+    fontWeight: "500",
   },
   errorContainer: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#f8fafc",
   },
   errorContent: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 40,
   },
   errorTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 20,
+    marginBottom: 10,
   },
   errorMessage: {
     fontSize: 16,
-    color: "#6b7280",
+    color: "#64748b",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 30,
+    lineHeight: 24,
   },
   retryButton: {
-    backgroundColor: "#2563eb",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: "#3b82f6",
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   retryButtonText: {
     color: "#ffffff",
@@ -483,16 +521,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fef2f2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 6,
     alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   offlineText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#ef4444',
     fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: 6,
   },
 });

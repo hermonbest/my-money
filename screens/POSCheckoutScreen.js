@@ -16,9 +16,12 @@ import { useStore } from "../contexts/StoreContext";
 import { offlineDataService } from "../utils/OfflineDataService";
 import { getCurrentUser } from "../utils/authUtils";
 import { formatCurrency } from "../utils/helpers";
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function POSCheckoutScreen({ navigation, route }) {
   const { selectedStore, userRole } = useStore();
+  const { language } = useLanguage(); // Use language context
   const { cartItems } = route.params || { cartItems: [] };
   
   // Debugging: Log userRole
@@ -48,7 +51,7 @@ export default function POSCheckoutScreen({ navigation, route }) {
 
   const validateForm = () => {
     if (localCartItems.length === 0) {
-      Alert.alert("Error", "Cart is empty");
+      Alert.alert(getTranslation('error', language), getTranslation('emptyCart', language));
       return false;
     }
     return true;
@@ -69,13 +72,13 @@ export default function POSCheckoutScreen({ navigation, route }) {
       // Create sale data
       const saleData = {
         sale_number: `POS-${Date.now()}`,
-        customer_name: formData.customerName || 'Walk-in Customer',
+        customer_name: formData.customerName || getTranslation('customerName', language),
         total_amount: total,
         subtotal: total,
         tax_amount: 0,
         discount_amount: 0,
         payment_method: formData.paymentMethod,
-        notes: formData.notes || 'POS Sale',
+        notes: formData.notes || getTranslation('posSale', language),
         user_id: user.id,
         store_id: selectedStore?.id,
         sale_date: new Date().toISOString(),
@@ -101,9 +104,9 @@ export default function POSCheckoutScreen({ navigation, route }) {
       const result = await offlineDataService.processSale(saleData, saleItems, userRole);
       
       if (result.offline) {
-        Alert.alert("Offline Mode", "Sale will be recorded when you're back online", [
+        Alert.alert(getTranslation('offlineMode', language), getTranslation('saleWillSync', language), [
           {
-            text: "OK",
+            text: getTranslation('ok', language),
             onPress: () => {
               // Navigate back with success result to clear cart
               navigation.navigate('POS', { clearCart: true });
@@ -111,9 +114,9 @@ export default function POSCheckoutScreen({ navigation, route }) {
           }
         ]);
       } else {
-        Alert.alert("Success", "Sale recorded successfully!", [
+        Alert.alert(getTranslation('success', language), getTranslation('saleCompletedSuccessfully', language), [
           {
-            text: "OK",
+            text: getTranslation('ok', language),
             onPress: () => {
               // Navigate back with success result to clear cart
               navigation.navigate('POS', { clearCart: true });
@@ -123,7 +126,7 @@ export default function POSCheckoutScreen({ navigation, route }) {
       }
     } catch (error) {
       console.error("Error recording sale:", error);
-      Alert.alert("Error", "Failed to record sale");
+      Alert.alert(getTranslation('error', language), getTranslation('operationFailed', language));
     } finally {
       setLoading(false);
     }
@@ -156,7 +159,7 @@ export default function POSCheckoutScreen({ navigation, route }) {
 
   const renderPaymentMethodSelector = () => (
     <View style={styles.inputContainer}>
-      <Text style={styles.inputLabel}>Payment Method *</Text>
+      <Text style={styles.inputLabel}>{getTranslation('paymentMethod', language)} *</Text>
       <View style={styles.paymentMethods}>
         {['cash', 'mobile'].map(method => (
           <TouchableOpacity
@@ -176,7 +179,7 @@ export default function POSCheckoutScreen({ navigation, route }) {
               styles.paymentMethodText,
               formData.paymentMethod === method && styles.paymentMethodTextSelected
             ]}>
-              {method.charAt(0).toUpperCase() + method.slice(1)}
+              {method === 'cash' ? getTranslation('cash', language) : getTranslation('mobile', language)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -207,9 +210,9 @@ export default function POSCheckoutScreen({ navigation, route }) {
     <View style={styles.cartItem}>
       <View style={styles.cartItemInfo}>
         <Text style={styles.cartItemName}>{item.name}</Text>
-        <Text style={styles.cartItemCategory}>{item.category || "General"}</Text>
+        <Text style={styles.cartItemCategory}>{item.category || getTranslation('general', language)}</Text>
         <Text style={styles.cartItemPrice}>
-          {formatCurrency(item.unit_price)} each
+          {formatCurrency(item.unit_price)} {getTranslation('each', language)}
         </Text>
       </View>
       <View style={styles.cartItemActions}>
@@ -265,15 +268,15 @@ export default function POSCheckoutScreen({ navigation, route }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Checkout</Text>
+          <Text style={styles.headerTitle}>{getTranslation('checkout', language)}</Text>
           <Text style={styles.headerSubtitle}>
-            Complete your sale transaction
+            {getTranslation('completeSale', language)}
           </Text>
         </View>
 
         {/* Cart Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cart Items ({getCartItemCount()})</Text>
+          <Text style={styles.sectionTitle}>{getTranslation('cartItems', language)} ({getCartItemCount()})</Text>
           <FlatList
             data={localCartItems}
             renderItem={renderCartItem}
@@ -286,17 +289,17 @@ export default function POSCheckoutScreen({ navigation, route }) {
         {/* Customer Information */}
         <View style={styles.form}>
           {renderInputField(
-            "Customer Name",
+            getTranslation('customerName', language),
             "customerName",
-            "Enter customer name (optional)",
+            getTranslation('customerNameOptional', language),
           )}
           
           {renderPaymentMethodSelector()}
           
           {renderInputField(
-            "Notes",
+            getTranslation('notes', language),
             "notes",
-            "Enter sale notes (optional)",
+            getTranslation('enterSaleNotes', language),
             "default",
             true,
           )}
@@ -304,28 +307,28 @@ export default function POSCheckoutScreen({ navigation, route }) {
 
         {/* Sale Summary */}
         <View style={styles.summary}>
-          <Text style={styles.summaryTitle}>Sale Summary</Text>
+          <Text style={styles.summaryTitle}>{getTranslation('saleSummary', language)}</Text>
           <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Items:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('items', language)}:</Text>
               <Text style={styles.summaryValue}>
-                {getCartItemCount()} units
+                {getCartItemCount()} {getTranslation('units', language)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('subtotal', language)}:</Text>
               <Text style={styles.summaryValue}>
                 {formatCurrency(getCartTotal())}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Tax:</Text>
+              <Text style={styles.summaryLabel}>{getTranslation('tax', language)}:</Text>
               <Text style={styles.summaryValue}>
                 {formatCurrency(0)}
               </Text>
             </View>
             <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total Amount:</Text>
+              <Text style={styles.totalLabel}>{getTranslation('totalAmount', language)}:</Text>
               <Text style={styles.totalValue}>
                 {formatCurrency(getCartTotal())}
               </Text>
@@ -344,7 +347,7 @@ export default function POSCheckoutScreen({ navigation, route }) {
           }}
           disabled={loading}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
@@ -352,11 +355,11 @@ export default function POSCheckoutScreen({ navigation, route }) {
           disabled={loading}
         >
           {loading ? (
-            <Text style={styles.saveButtonText}>Processing...</Text>
+            <Text style={styles.saveButtonText}>{getTranslation('processing', language)}...</Text>
           ) : (
             <>
               <MaterialIcons name="check" size={20} color="#ffffff" />
-              <Text style={styles.saveButtonText}>Complete Sale</Text>
+              <Text style={styles.saveButtonText}>{getTranslation('completeSale', language)}</Text>
             </>
           )}
         </TouchableOpacity>
