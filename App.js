@@ -93,6 +93,24 @@ export default function App() {
         setCurrentUser(user);
         profile = await loadUserProfile(user.id);
         
+        // Add additional check for profile
+        if (!profile) {
+          console.log('🔍 No profile found, checking database directly...');
+          // Try to load profile directly from database if not in cache
+          const { data: dbProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (!profileError && dbProfile) {
+            console.log('🔍 Found profile in database:', dbProfile);
+            // Cache the profile
+            await AsyncStorage.setItem(`user_profile_${user.id}`, JSON.stringify(dbProfile));
+            profile = dbProfile;
+          }
+        }
+        
         if (profile?.role) {
           setUserRole(profile.role);
           setIsAuthenticated(true);
@@ -201,9 +219,11 @@ export default function App() {
         if (event === 'SIGNED_OUT') {
           // Clear cached data
           await AsyncStorage.removeItem('cached_user_session');
-          await AsyncStorage.multiRemove(
-            (await AsyncStorage.getAllKeys()).filter(key => key.startsWith('user_profile_'))
-          );
+          const allKeys = await AsyncStorage.getAllKeys();
+          const profileKeys = allKeys.filter(key => key.startsWith('user_profile_'));
+          if (profileKeys.length > 0) {
+            await AsyncStorage.multiRemove(profileKeys);
+          }
         }
         
         setIsAuthenticated(false);

@@ -190,6 +190,7 @@ export default function LoginScreen({ navigation }) {
       let user = null;
       let authError = null;
       
+      // Try to get the user up to 3 times with increasing delays
       for (let i = 0; i < 3; i++) {
         const { data, error } = await supabase.auth.getUser();
         if (!error && data?.user) {
@@ -197,7 +198,7 @@ export default function LoginScreen({ navigation }) {
           break;
         }
         authError = error;
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
       }
 
       if (authError || !user) {
@@ -223,6 +224,38 @@ export default function LoginScreen({ navigation }) {
 
       if (error) {
         console.error('Profile creation error:', error);
+        
+        // If we get a unique constraint violation, try to get the existing profile
+        if (error.code === '23505') {
+          console.log('🔍 Profile already exists, fetching existing profile...');
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (existingProfile) {
+            console.log('🔍 Using existing profile:', existingProfile);
+            
+            Alert.alert(
+              getTranslation('success', language),
+              `${getTranslation('welcomeBack', language)}! ${getTranslation('profileCreated', language)} ${existingProfile.role === 'individual' ? getTranslation('individual', language) : getTranslation('owner', language)}.`,
+              [
+                {
+                  text: getTranslation('continue', language),
+                  onPress: () => {
+                    setShowRoleSelection(false);
+                    // The app will automatically detect the new profile and navigate to main app
+                    // The auth state change listener will handle the navigation
+                  }
+                }
+              ]
+            );
+            
+            return;
+          }
+        }
+        
         throw error;
       }
 

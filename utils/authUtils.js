@@ -206,6 +206,7 @@ export const getUserProfile = async (userId) => {
         return JSON.parse(cachedProfile);
       }
       
+      // If no profile found, return null
       console.log('🔍 No profile found online and no cached data');
       return null;
     } else {
