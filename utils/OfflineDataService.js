@@ -3,29 +3,38 @@ import { offlineManager } from './OfflineManager';
 import { getCurrentUser, getUserProfile } from './authUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Helper function for generating consistent cache keys
+const generateCacheKey = (dataType, storeId, userId, userRole) => {
+  const effectiveUserRole = userRole || 'worker';
+  return `${dataType}_${storeId || userId}_${effectiveUserRole}`;
+};
+
 class OfflineDataService {
   // Inventory operations
   async getInventory(storeId, userId, userRole) {
-    // Ensure we have a valid userRole for cache key consistency
-    const effectiveUserRole = userRole || 'worker'; // Default to 'worker' if null
-    const cacheKey = `inventory_${storeId || userId}_${effectiveUserRole}`;
+    const cacheKey = generateCacheKey('inventory', storeId, userId, userRole);
     
     try {
       // Try to get data online first
       if (offlineManager.isConnected()) {
         let query = supabase.from('inventory').select('*');
         
-        if (effectiveUserRole === 'individual') {
+        if (userRole === 'individual') {
           query = query.eq('user_id', userId);
-        } else if (effectiveUserRole === 'owner' && storeId) {
+        } else if (userRole === 'owner' && storeId) {
           query = query.eq('store_id', storeId);
-        } else if (effectiveUserRole === 'worker' && storeId) {
+        } else if (userRole === 'worker' && storeId) {
           query = query.eq('store_id', storeId);
         }
         
         const { data, error } = await query.order('name');
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ Online inventory fetch failed, trying cached data:', error.message);
+          // Try cached data as fallback
+          const cachedData = await offlineManager.getLocalData(cacheKey);
+          return cachedData || [];
+        }
         
         // Cache the data for offline use
         await offlineManager.storeLocalData(cacheKey, data || []);
@@ -39,12 +48,13 @@ class OfflineDataService {
       console.error('Error fetching inventory:', error);
       
       // If online fails, try to return cached data
-      if (offlineManager.isConnected()) {
+      try {
         const cachedData = await offlineManager.getLocalData(cacheKey);
         return cachedData || [];
+      } catch (cacheError) {
+        console.error('Error accessing cached inventory:', cacheError);
+        return [];
       }
-      
-      throw error;
     }
   }
 
@@ -56,18 +66,23 @@ class OfflineDataService {
     if (offlineManager.isConnected()) {
       // Online: Check real-time stock from database
       for (const item of saleItems) {
-        const { data: currentStock, error: stockError } = await supabase
-          .from('inventory')
-          .select('quantity, name')
-          .eq('id', item.inventory_id)
-          .single();
+        try {
+          const { data: currentStock, error: stockError } = await supabase
+            .from('inventory')
+            .select('quantity, name')
+            .eq('id', item.inventory_id)
+            .single();
 
-        if (stockError) {
-          throw new Error(`Failed to check stock for ${item.name}: ${stockError.message}`);
-        }
+          if (stockError) {
+            throw new Error(`Failed to check stock for ${item.name}: ${stockError.message}`);
+          }
 
-        if (currentStock.quantity < item.quantity) {
-          throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock.quantity}, Requested: ${item.quantity}`);
+          if (currentStock.quantity < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.name}. Available: ${currentStock.quantity}, Requested: ${item.quantity}`);
+          }
+        } catch (error) {
+          console.error('Error checking stock for item:', item, error);
+          throw error;
         }
       }
     } else {
@@ -97,11 +112,17 @@ class OfflineDataService {
       
       // Ensure we have a valid userRole for cache key consistency
       const effectiveUserRole = userRole || profile?.role || 'worker';
-      const cacheKey = `inventory_${cacheStoreId}_${effectiveUserRole}`;
+      const cacheKey = generateCacheKey('inventory', cacheStoreId, user.id, effectiveUserRole);
       const cachedInventory = await offlineManager.getLocalData(cacheKey) || [];
       
       console.log('🔍 Cache key used for validation:', cacheKey);
       console.log('🔍 Cached inventory items:', cachedInventory.length);
+      
+      // Validate cache is not empty
+      if (cachedInventory.length === 0) {
+        console.warn('⚠️ Inventory cache is empty, cannot validate stock');
+        throw new Error('Inventory cache is empty, cannot validate stock availability. Please connect to the internet to refresh inventory data.');
+      }
       
       for (const item of saleItems) {
         const inventoryItem = cachedInventory.find(inv => inv.id === item.inventory_id);
@@ -113,7 +134,7 @@ class OfflineDataService {
           );
           
           if (!offlineItem) {
-            throw new Error(`Item ${item.name} not found in cached inventory`);
+            throw new Error(`Item ${item.name} not found in cached inventory. Please connect to the internet to refresh inventory data.`);
           }
           
           // Use the offline item for validation
@@ -161,7 +182,7 @@ class OfflineDataService {
       
       // Update cache with real data after successful sync
       const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-      const cacheKey = `inventory_${itemData.store_id || user.id}_${effectiveUserRole}`;
+      const cacheKey = generateCacheKey('inventory', itemData.store_id || user.id, user.id, effectiveUserRole);
       const currentInventory = await offlineManager.getLocalData(cacheKey) || [];
       
       // Find and replace the temp item with the real item using the temp ID
@@ -185,7 +206,7 @@ class OfflineDataService {
       
       // Update local cache immediately with the temp item
       const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-      const cacheKey = `inventory_${itemData.store_id || user.id}_${effectiveUserRole}`;
+      const cacheKey = generateCacheKey('inventory', itemData.store_id || user.id, user.id, effectiveUserRole);
       const currentInventory = await offlineManager.getLocalData(cacheKey) || [];
       const updatedInventory = [...currentInventory, tempItem];
       await offlineManager.storeLocalData(cacheKey, updatedInventory);
@@ -226,7 +247,7 @@ class OfflineDataService {
       const { user, error: userError } = await getCurrentUser();
       if (user && !userError) {
         const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-        const cacheKey = `inventory_${updates.store_id || user.id}_${effectiveUserRole}`;
+        const cacheKey = generateCacheKey('inventory', updates.store_id || user.id, user.id, effectiveUserRole);
         const currentInventory = await offlineManager.getLocalData(cacheKey) || [];
         const updatedInventory = currentInventory.map(item => 
           item.id === itemId ? { ...item, ...updates } : item
@@ -263,11 +284,11 @@ class OfflineDataService {
         // We need the store_id for consistent cache key generation
         // First get the item to determine its store_id
         const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-        const existingInventory = await offlineManager.getLocalData(`inventory_${user.id}_${effectiveUserRole}`) || [];
+        const existingInventory = await offlineManager.getLocalData(generateCacheKey('inventory', user.id, user.id, effectiveUserRole)) || [];
         const item = existingInventory.find(inv => inv.id === itemId);
         const storeId = item?.store_id;
         
-        const cacheKey = `inventory_${storeId || user.id}_${effectiveUserRole}`;
+        const cacheKey = generateCacheKey('inventory', storeId || user.id, user.id, effectiveUserRole);
         const currentInventory = await offlineManager.getLocalData(cacheKey) || [];
         const updatedInventory = currentInventory.filter(item => item.id !== itemId);
         await offlineManager.storeLocalData(cacheKey, updatedInventory);
@@ -282,8 +303,7 @@ class OfflineDataService {
 
   // Sales operations
   async getSales(storeId, userId, userRole) {
-    const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-    const cacheKey = `sales_${storeId || userId}_${effectiveUserRole}`;
+    const cacheKey = generateCacheKey('sales', storeId, userId, userRole);
     
     try {
       // Try to get data online first
@@ -296,17 +316,22 @@ class OfflineDataService {
           )
         `);
         
-        if (effectiveUserRole === 'individual') {
+        if (userRole === 'individual') {
           query = query.eq('user_id', userId);
-        } else if (effectiveUserRole === 'owner' && storeId) {
+        } else if (userRole === 'owner' && storeId) {
           query = query.eq('store_id', storeId);
-        } else if (effectiveUserRole === 'worker' && storeId) {
+        } else if (userRole === 'worker' && storeId) {
           query = query.eq('store_id', storeId);
         }
         
         const { data, error } = await query.order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ Online sales fetch failed, trying cached data:', error.message);
+          // Try cached data as fallback
+          const cachedData = await offlineManager.getLocalData(cacheKey);
+          return cachedData || [];
+        }
         
         // Cache the data for offline use
         await offlineManager.storeLocalData(cacheKey, data || []);
@@ -320,12 +345,13 @@ class OfflineDataService {
       console.error('Error fetching sales:', error);
       
       // If online fails, try to return cached data
-      if (offlineManager.isConnected()) {
+      try {
         const cachedData = await offlineManager.getLocalData(cacheKey);
         return cachedData || [];
+      } catch (cacheError) {
+        console.error('Error accessing cached sales:', cacheError);
+        return [];
       }
-      
-      throw error;
     }
   }
 
@@ -338,7 +364,7 @@ class OfflineDataService {
         .insert(saleData)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     };
@@ -350,7 +376,7 @@ class OfflineDataService {
       const { user, error: userError } = await getCurrentUser();
       if (user && !userError) {
         const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-        const cacheKey = `sales_${saleData.store_id || user.id}_${effectiveUserRole}`;
+        const cacheKey = generateCacheKey('sales', saleData.store_id || user.id, user.id, effectiveUserRole);
         const currentSales = await offlineManager.getLocalData(cacheKey) || [];
         const updatedSales = [result, ...currentSales];
         await offlineManager.storeLocalData(cacheKey, updatedSales);
@@ -643,7 +669,7 @@ class OfflineDataService {
             try {
               const { user } = await getCurrentUser();
               if (user) {
-                const inventoryCacheKey = `inventory_${saleData.store_id || user.id}_${userRole}`;
+                const inventoryCacheKey = generateCacheKey('inventory', saleData.store_id || user.id, user.id, userRole);
                 console.log('   - Cache key:', inventoryCacheKey);
                 
                 const currentInventory = await offlineManager.getLocalData(inventoryCacheKey) || [];
@@ -696,7 +722,7 @@ class OfflineDataService {
           try {
             const { user } = await getCurrentUser();
             if (user) {
-              const inventoryCacheKey = `inventory_${saleData.store_id || user.id}_${userRole}`;
+              const inventoryCacheKey = generateCacheKey('inventory', saleData.store_id || user.id, user.id, userRole);
               const currentInventory = await offlineManager.getLocalData(inventoryCacheKey) || [];
               const updatedInventory = currentInventory.map(inv =>
                 inv.id === item.inventory_id 
@@ -776,13 +802,13 @@ class OfflineDataService {
         };
 
         // Update sales cache
-        const salesCacheKey = `sales_${saleData.store_id || user.id}_${effectiveUserRole}`;
+        const salesCacheKey = generateCacheKey('sales', saleData.store_id || user.id, user.id, effectiveUserRole);
         const currentSales = await offlineManager.getLocalData(salesCacheKey) || [];
         const updatedSales = [completeSale, ...currentSales];
         await offlineManager.storeLocalData(salesCacheKey, updatedSales);
 
         // Update inventory cache to reflect stock changes
-        const inventoryCacheKey = `inventory_${saleData.store_id || user.id}_${effectiveUserRole}`;
+        const inventoryCacheKey = generateCacheKey('inventory', saleData.store_id || user.id, user.id, effectiveUserRole);
         const currentInventory = await offlineManager.getLocalData(inventoryCacheKey) || [];
         const updatedInventory = currentInventory.map(invItem => {
           const saleItem = saleItems.find(si => si.inventory_id === invItem.id);
@@ -812,23 +838,27 @@ class OfflineDataService {
 
   // Expenses operations
   async getExpenses(storeId, userId, userRole) {
-    const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-    const cacheKey = `expenses_${storeId || userId}_${effectiveUserRole}`;
+    const cacheKey = generateCacheKey('expenses', storeId, userId, userRole);
     
     try {
       // Try to get data online first
       if (offlineManager.isConnected()) {
         let query = supabase.from('expenses').select('*');
         
-        if (effectiveUserRole === 'individual') {
+        if (userRole === 'individual') {
           query = query.eq('user_id', userId);
-        } else if (effectiveUserRole === 'owner' && storeId) {
+        } else if (userRole === 'owner' && storeId) {
           query = query.eq('store_id', storeId);
         }
         
         const { data, error } = await query.order('expense_date', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+          console.warn('⚠️ Online expenses fetch failed, trying cached data:', error.message);
+          // Try cached data as fallback
+          const cachedData = await offlineManager.getLocalData(cacheKey);
+          return cachedData || [];
+        }
         
         // Cache the data for offline use
         await offlineManager.storeLocalData(cacheKey, data || []);
@@ -842,12 +872,13 @@ class OfflineDataService {
       console.error('Error fetching expenses:', error);
       
       // If online fails, try to return cached data
-      if (offlineManager.isConnected()) {
+      try {
         const cachedData = await offlineManager.getLocalData(cacheKey);
         return cachedData || [];
+      } catch (cacheError) {
+        console.error('Error accessing cached expenses:', cacheError);
+        return [];
       }
-      
-      throw error;
     }
   }
 
@@ -872,7 +903,7 @@ class OfflineDataService {
       const { user, error: userError } = await getCurrentUser();
       if (user && !userError) {
         const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-        const cacheKey = `expenses_${expenseData.store_id || user.id}_${effectiveUserRole}`;
+        const cacheKey = generateCacheKey('expenses', expenseData.store_id || user.id, user.id, effectiveUserRole);
         const currentExpenses = await offlineManager.getLocalData(cacheKey) || [];
         const updatedExpenses = [result, ...currentExpenses];
         await offlineManager.storeLocalData(cacheKey, updatedExpenses);
@@ -906,11 +937,11 @@ class OfflineDataService {
       if (user && !userError) {
         // Find the expense to get its store_id for cache key
         const effectiveUserRole = userRole || 'worker'; // Ensure consistent cache key
-        const existingExpenses = await offlineManager.getLocalData(`expenses_${user.id}_${effectiveUserRole}`) || [];
+        const existingExpenses = await offlineManager.getLocalData(generateCacheKey('expenses', user.id, user.id, effectiveUserRole)) || [];
         const expense = existingExpenses.find(exp => exp.id === expenseId);
         const storeId = expense?.store_id;
         
-        const cacheKey = `expenses_${storeId || user.id}_${effectiveUserRole}`;
+        const cacheKey = generateCacheKey('expenses', storeId || user.id, user.id, effectiveUserRole);
         const currentExpenses = await offlineManager.getLocalData(cacheKey) || [];
         const updatedExpenses = currentExpenses.filter(exp => exp.id !== expenseId);
         await offlineManager.storeLocalData(cacheKey, updatedExpenses);
@@ -920,6 +951,52 @@ class OfflineDataService {
     } catch (error) {
       console.error('Error deleting expense:', error);
       throw error;
+    }
+  }
+
+  // Enhanced method to get user profile with better caching
+  async getUserProfile(userId) {
+    const cacheKey = `user_profile_${userId}`;
+    
+    try {
+      // Try to get data online first
+      if (offlineManager.isConnected()) {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role, store_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('⚠️ Online profile fetch failed, trying cached data:', error.message);
+          // Try cached data as fallback
+          const cachedData = await offlineManager.getLocalData(cacheKey);
+          return cachedData || null;
+        }
+        
+        if (profile) {
+          // Cache the data for offline use
+          await offlineManager.storeLocalData(cacheKey, profile);
+          return profile;
+        }
+        
+        return null;
+      } else {
+        // Return cached data when offline
+        const cachedData = await offlineManager.getLocalData(cacheKey);
+        return cachedData || null;
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      
+      // If online fails, try to return cached data
+      try {
+        const cachedData = await offlineManager.getLocalData(cacheKey);
+        return cachedData || null;
+      } catch (cacheError) {
+        console.error('Error accessing cached profile:', cacheError);
+        return null;
+      }
     }
   }
 }

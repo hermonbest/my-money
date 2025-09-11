@@ -12,25 +12,15 @@ export const useStore = () => {
   // Debugging: Log context values
   useEffect(() => {
     console.log('🔍 useStore context values:', {
-      selectedStore: context.selectedStore?.name,
+      selectedStore: context.selectedStore?.name || context.selectedStore,
       userRole: context.userRole,
       loading: context.loading,
       isAuthenticated: context.isAuthenticated
     });
     
     // Only warn if we're not loading, user is authenticated, but userRole is still null/undefined
-    // Additional check to prevent warning during sign-out transition
-    if (!context.loading && context.isAuthenticated && (context.userRole === null || context.userRole === undefined)) {
-      // Double-check auth state to prevent false warnings during transitions
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        // Only show warning if there is definitely a user but no role
-        if (user) {
-          console.warn('⚠️ useStore: userRole is null/undefined after loading completed');
-        }
-      }).catch(() => {
-        // If we can't get user, it means we're likely in a sign-out transition
-        // Don't show the warning in this case
-      });
+    if (!context.loading && context.isAuthenticated && !context.userRole) {
+      console.warn('⚠️ useStore: userRole is falsy after loading completed');
     }
   }, [context.selectedStore, context.userRole, context.loading, context.isAuthenticated]);
   
@@ -98,7 +88,7 @@ export const StoreProvider = ({ children }) => {
 
             if (retryProfile) {
               console.log('🔍 StoreContext: Found profile after retry:', retryProfile);
-              setUserRole(retryProfile.role);
+              setUserRole(retryProfile.role || 'worker'); // Default to worker if no role
               
               // Handle store selection based on role
               if (retryProfile.role === 'worker' && retryProfile.store_id) {
@@ -125,7 +115,7 @@ export const StoreProvider = ({ children }) => {
                 }
               }
             } else {
-              setUserRole(null);
+              setUserRole('worker'); // Default to worker
               setStores([]);
               setSelectedStore(null);
             }
@@ -134,10 +124,10 @@ export const StoreProvider = ({ children }) => {
           }
           
           console.log('✅ StoreContext: Created default worker profile:', newProfile);
-          setUserRole(newProfile.role);
+          setUserRole(newProfile.role || 'worker');
           
           // For workers, get their assigned store directly from their profile
-          if (newProfile.role === 'worker' && newProfile.store_id) {
+          if ((newProfile.role || 'worker') === 'worker' && newProfile.store_id) {
             const { data: assignedStore, error: storeError } = await supabase
               .from('stores')
               .select('*')
@@ -159,7 +149,7 @@ export const StoreProvider = ({ children }) => {
             }
           } else {
             // For owners and individuals
-            if (newProfile.role === 'owner') {
+            if ((newProfile.role || 'worker') === 'owner') {
               // Get owned stores
               const { data: ownedStores, error: storesError } = await supabase
                 .from('stores')
@@ -174,7 +164,7 @@ export const StoreProvider = ({ children }) => {
                 setSelectedStore(ownedStores[0]);
               }
             } else {
-              // For individuals, no stores needed
+              // For individuals and workers without store_id
               setStores([]);
               setSelectedStore(null);
             }
@@ -183,18 +173,18 @@ export const StoreProvider = ({ children }) => {
           return;
         }
         
-        // For other profile errors, set to null
-        setUserRole(null);
+        // For other profile errors, set default role
+        setUserRole('worker'); // Default to worker
         setStores([]);
         setSelectedStore(null);
         return;
       }
 
       console.log('🔍 StoreContext: Profile loaded:', profile);
-      setUserRole(profile.role);
+      setUserRole(profile.role || 'worker'); // Default to worker if no role
 
       // Load stores based on role
-      if (profile.role === 'owner') {
+      if ((profile.role || 'worker') === 'owner') {
         const { data: ownedStores, error: storesError } = await supabase
           .from('stores')
           .select('*')
@@ -207,7 +197,7 @@ export const StoreProvider = ({ children }) => {
         if (ownedStores && ownedStores.length > 0) {
           setSelectedStore(ownedStores[0]);
         }
-      } else if (profile.role === 'worker') {
+      } else if ((profile.role || 'worker') === 'worker') {
         // For workers, get their assigned store directly from their profile
         if (profile.store_id) {
           const { data: assignedStore, error: storeError } = await supabase
@@ -242,7 +232,7 @@ export const StoreProvider = ({ children }) => {
 
     } catch (error) {
       console.error('Error loading user profile:', error);
-      setUserRole(null);
+      setUserRole('worker'); // Default to worker on error
       setStores([]);
       setSelectedStore(null);
     } finally {

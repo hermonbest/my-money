@@ -10,9 +10,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Import services
 import { supabase } from "./utils/supabase";
 import { offlineManager } from "./utils/OfflineManager";
+import { networkInterceptor } from "./utils/NetworkInterceptor"; // Add this import
+import { dataPreloader } from "./utils/DataPreloader";
 
 // Import components
 import ErrorBoundary from "./components/ErrorBoundary";
+import SyncStatusIndicator from "./components/SyncStatusIndicator";
 import { StoreProvider } from "./contexts/StoreContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 
@@ -42,6 +45,13 @@ export default function App() {
   const [userRole, setUserRole] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const [isPreloading, setIsPreloading] = useState(false);
+
+  // Attach network interceptor to offline manager
+  useEffect(() => {
+    // Attach the network interceptor to the offline manager
+    offlineManager.attachNetworkInterceptor(networkInterceptor);
+  }, []);
 
   useEffect(() => {
     checkAuthState();
@@ -69,14 +79,19 @@ export default function App() {
 
       if (offlineManager.isConnected()) {
         // Online: check with Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          user = session.user;
-          // Cache user session
-          await AsyncStorage.setItem('cached_user_session', JSON.stringify({
-            user: session.user,
-            timestamp: new Date().toISOString()
-          }));
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            user = session.user;
+            // Cache user session
+            await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+              user: session.user,
+              timestamp: new Date().toISOString()
+            }));
+          }
+        } catch (error) {
+          console.warn('⚠️ Online session check failed, trying cached session:', error.message);
+          // Fall through to cached session check
         }
       }
 
@@ -84,8 +99,12 @@ export default function App() {
       if (!user) {
         const cachedSession = await AsyncStorage.getItem('cached_user_session');
         if (cachedSession) {
-          const { user: cachedUser } = JSON.parse(cachedSession);
-          user = cachedUser;
+          try {
+            const { user: cachedUser } = JSON.parse(cachedSession);
+            user = cachedUser;
+          } catch (parseError) {
+            console.error('❌ Error parsing cached session:', parseError);
+          }
         }
       }
 
@@ -97,17 +116,21 @@ export default function App() {
         if (!profile) {
           console.log('🔍 No profile found, checking database directly...');
           // Try to load profile directly from database if not in cache
-          const { data: dbProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-            
-          if (!profileError && dbProfile) {
-            console.log('🔍 Found profile in database:', dbProfile);
-            // Cache the profile
-            await AsyncStorage.setItem(`user_profile_${user.id}`, JSON.stringify(dbProfile));
-            profile = dbProfile;
+          try {
+            const { data: dbProfile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('user_id', user.id)
+              .single();
+              
+            if (!profileError && dbProfile) {
+              console.log('🔍 Found profile in database:', dbProfile);
+              // Cache the profile
+              await AsyncStorage.setItem(`user_profile_${user.id}`, JSON.stringify(dbProfile));
+              profile = dbProfile;
+            }
+          } catch (dbError) {
+            console.warn('⚠️ Database profile check failed:', dbError.message);
           }
         }
         
@@ -115,6 +138,13 @@ export default function App() {
           setUserRole(profile.role);
           setIsAuthenticated(true);
           setNeedsProfileSetup(false);
+          
+          // Preload all data for instant navigation
+          try {
+            await preloadAllData(user.id, profile.role, profile.store_id);
+          } catch (preloadError) {
+            console.warn('⚠️ Data preloading failed:', preloadError.message);
+          }
         } else {
           setIsAuthenticated(false);
           setNeedsProfileSetup(true);
@@ -133,14 +163,25 @@ export default function App() {
       try {
         const cachedSession = await AsyncStorage.getItem('cached_user_session');
         if (cachedSession) {
-          const { user } = JSON.parse(cachedSession);
-          setCurrentUser(user);
-          const profile = await loadUserProfile(user.id);
-          
-          if (profile?.role) {
-            setUserRole(profile.role);
-            setIsAuthenticated(true);
-            setNeedsProfileSetup(false);
+          try {
+            const { user } = JSON.parse(cachedSession);
+            setCurrentUser(user);
+            const profile = await loadUserProfile(user.id);
+            
+            if (profile?.role) {
+              setUserRole(profile.role);
+              setIsAuthenticated(true);
+              setNeedsProfileSetup(false);
+              
+              // Preload all data for instant navigation
+              try {
+                await preloadAllData(user.id, profile.role, profile.store_id);
+              } catch (preloadError) {
+                console.warn('⚠️ Data preloading failed:', preloadError.message);
+              }
+            }
+          } catch (parseError) {
+            console.error('❌ Error parsing cached session:', parseError);
           }
         }
       } catch (cacheError) {
@@ -151,6 +192,36 @@ export default function App() {
     }
   };
 
+  const preloadAllData = async (userId, userRole, storeId) => {
+    if (isPreloading) {
+      console.log('Preloading already in progress, skipping...');
+      return;
+    }
+    
+    setIsPreloading(true);
+    console.log('🔄 Starting data preloading...');
+    
+    try {
+      const userData = {
+        userId,
+        userRole,
+        storeId
+      };
+      
+      const preloadSuccess = await dataPreloader.preloadAll(userData);
+      
+      if (preloadSuccess) {
+        console.log('✅ Data preloading completed successfully');
+      } else {
+        console.warn('⚠️ Data preloading completed with some errors');
+      }
+    } catch (error) {
+      console.error('❌ Error during data preloading:', error);
+    } finally {
+      setIsPreloading(false);
+    }
+  };
+
   const loadUserProfile = async (userId) => {
     try {
       console.log('🔍 Loading user profile for:', userId);
@@ -158,23 +229,32 @@ export default function App() {
       // Try to get cached profile first
       const cachedProfile = await AsyncStorage.getItem(`user_profile_${userId}`);
       if (cachedProfile) {
-        console.log('✅ Using cached profile:', JSON.parse(cachedProfile));
-        return JSON.parse(cachedProfile);
+        try {
+          const parsedProfile = JSON.parse(cachedProfile);
+          console.log('✅ Using cached profile:', parsedProfile);
+          return parsedProfile;
+        } catch (parseError) {
+          console.error('❌ Error parsing cached profile:', parseError);
+        }
       }
       
       // If online, try to fetch from database
       if (offlineManager.isConnected()) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-        
-        if (error) throw error;
-        
-        // Cache the profile
-        await AsyncStorage.setItem(`user_profile_${userId}`, JSON.stringify(profile));
-        return profile;
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+          
+          if (error) throw error;
+          
+          // Cache the profile
+          await AsyncStorage.setItem(`user_profile_${userId}`, JSON.stringify(profile));
+          return profile;
+        } catch (dbError) {
+          console.warn('⚠️ Database profile fetch failed:', dbError.message);
+        }
       }
       
       // If offline and no cached profile, return null
@@ -196,10 +276,14 @@ export default function App() {
         setCurrentUser(session.user);
         
         // Cache user session
-        await AsyncStorage.setItem('cached_user_session', JSON.stringify({
-          user: session.user,
-          timestamp: new Date().toISOString()
-        }));
+        try {
+          await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+            user: session.user,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (cacheError) {
+          console.error('❌ Error caching user session:', cacheError);
+        }
         
         const profile = await loadUserProfile(session.user.id);
         console.log('Auth state change - profile:', profile);
@@ -208,6 +292,13 @@ export default function App() {
           setUserRole(profile.role);
           setIsAuthenticated(true);
           setNeedsProfileSetup(false);
+          
+          // Preload all data for instant navigation
+          try {
+            await preloadAllData(session.user.id, profile.role, profile.store_id);
+          } catch (preloadError) {
+            console.warn('⚠️ Data preloading failed:', preloadError.message);
+          }
         } else {
           // User exists but no profile - they need to complete profile setup
           setIsAuthenticated(false);
@@ -218,11 +309,18 @@ export default function App() {
         // Handle sign out
         if (event === 'SIGNED_OUT') {
           // Clear cached data
-          await AsyncStorage.removeItem('cached_user_session');
-          const allKeys = await AsyncStorage.getAllKeys();
-          const profileKeys = allKeys.filter(key => key.startsWith('user_profile_'));
-          if (profileKeys.length > 0) {
-            await AsyncStorage.multiRemove(profileKeys);
+          try {
+            await AsyncStorage.removeItem('cached_user_session');
+            const allKeys = await AsyncStorage.getAllKeys();
+            const profileKeys = allKeys.filter(key => key.startsWith('user_profile_'));
+            if (profileKeys.length > 0) {
+              await AsyncStorage.multiRemove(profileKeys);
+            }
+            
+            // Clear preloaded data
+            dataPreloader.clearPreloadedData();
+          } catch (clearError) {
+            console.error('❌ Error clearing cached data:', clearError);
           }
         }
         
@@ -366,13 +464,18 @@ export default function App() {
                   This app is not properly configured. Please check your environment variables.
                 </Text>
               </View>
-            ) : isLoading ? (
+            ) : isLoading || isPreloading ? (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
                 <ActivityIndicator size="large" color="#2563eb" />
-                <Text style={{ marginTop: 16, fontSize: 16, color: '#6b7280' }}>Loading...</Text>
+                <Text style={{ marginTop: 16, fontSize: 16, color: '#6b7280' }}>
+                  {isPreloading ? "Preloading data..." : "Loading..."}
+                </Text>
               </View>
             ) : isAuthenticated ? (
-              <MainStack />
+              <View style={{ flex: 1 }}>
+                <SyncStatusIndicator />
+                <MainStack />
+              </View>
             ) : needsProfileSetup ? (
               <RoleSelectionScreen onProfileCreated={refreshAuthState} />
             ) : (

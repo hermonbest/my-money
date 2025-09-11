@@ -44,186 +44,107 @@ graph TD
     M --> I
 ```
 
-## 3. Initial Data Preloading
+## 3. API Endpoints Reference
 
-### Preloading Strategy
-Upon successful login, the application will preload data for all screens to ensure instant navigation:
+The synchronization mechanism will work with the existing Supabase backend through the following API endpoints:
 
-#### Data to Preload
-- User profile and role information
-- Store information (for owners and workers)
-- Complete inventory data
-- Sales history
-- Expense records
-- Dashboard metrics and charts data
+### Authentication Endpoints
+- `POST /auth/v1/token?grant_type=password` - User login
+- `GET /auth/v1/user` - Get current user
+- `POST /auth/v1/logout` - User logout
 
-### Implementation Approach
-```javascript
-// In App.js or a dedicated preloader service
-const preloadAllData = async (userId, userRole, storeId) => {
-  try {
-    // Preload user profile
-    await offlineDataService.getUserProfile(userId);
-    
-    // Preload stores (for owners/workers)
-    if (userRole !== 'individual') {
-      await offlineDataService.getStores(userId, userRole);
-    }
-    
-    // Preload inventory
-    await offlineDataService.getInventory(storeId, userId, userRole);
-    
-    // Preload sales
-    await offlineDataService.getSales(storeId, userId, userRole);
-    
-    // Preload expenses
-    await offlineDataService.getExpenses(storeId, userId, userRole);
-    
-    // Preload dashboard data
-    await preloadDashboardData(userId, userRole, storeId);
-    
-    console.log('✅ All data preloaded successfully');
-  } catch (error) {
-    console.error('Error preloading data:', error);
-    // Fallback to cached data if available
-  }
-};
-```
+### Data Endpoints
+- `GET /rest/v1/inventory` - Fetch inventory items
+- `POST /rest/v1/inventory` - Create inventory item
+- `PATCH /rest/v1/inventory?id=eq.{id}` - Update inventory item
+- `DELETE /rest/v1/inventory?id=eq.{id}` - Delete inventory item
 
-## 4. Offline Functionality
+- `GET /rest/v1/sales` - Fetch sales records
+- `POST /rest/v1/sales` - Create sales record
+- `GET /rest/v1/sale_items` - Fetch sale items
+- `POST /rest/v1/sale_items` - Create sale items
 
-### Persistent Storage
-The application will use AsyncStorage to store all data locally with the following structure:
+- `GET /rest/v1/expenses` - Fetch expense records
+- `POST /rest/v1/expenses` - Create expense record
+- `DELETE /rest/v1/expenses?id=eq.{id}` - Delete expense record
 
-#### Storage Keys
-- `user_profile_${userId}` - User profile information
-- `stores_${userId}` - Store information
-- `inventory_${storeId}_${userRole}` - Inventory data
-- `sales_${storeId}_${userRole}` - Sales data
-- `expenses_${storeId}_${userRole}` - Expense data
-- `dashboard_${userId}` - Dashboard metrics
-- `sync_queue` - Pending synchronization operations
+### Request/Response Schema
 
-### Data Access Pattern
-```javascript
-// Enhanced OfflineDataService with preloading awareness
-class OfflineDataService {
-  async getInventory(storeId, userId, userRole) {
-    const cacheKey = `inventory_${storeId || userId}_${userRole}`;
-    
-    // Check if data is already preloaded
-    const preloadedData = this.preloadedData.get(cacheKey);
-    if (preloadedData) {
-      return preloadedData;
-    }
-    
-    // Standard cache/database access
-    if (offlineManager.isConnected()) {
-      // Fetch from server and cache
-      // ... existing implementation
-    } else {
-      // Return cached data
-      // ... existing implementation
-    }
-  }
+#### Inventory Item
+```json
+{
+  "id": "string",
+  "name": "string",
+  "description": "string",
+  "quantity": "number",
+  "unit_price": "number",
+  "cost_price": "number",
+  "store_id": "string",
+  "user_id": "string",
+  "created_at": "string",
+  "updated_at": "string"
 }
 ```
 
-## 5. Synchronization Engine
-
-### Sync Queue Management
-The OfflineManager will be enhanced to handle synchronization with improved queue management:
-
-#### Queue Structure
-```javascript
-// Enhanced sync queue in OfflineManager
-this.syncQueue = [
-  {
-    id: 'unique_operation_id',
-    type: 'add_inventory|update_inventory|delete_inventory|add_sale|add_expense',
-    data: { /* operation data */ },
-    timestamp: 'ISO_TIMESTAMP',
-    attempts: 0,
-    syncFunction: () => {},
-    rollbackFunction: () => {}
-  }
-];
-```
-
-### Automatic Sync Trigger
-```javascript
-// In OfflineManager
-async syncPendingChanges() {
-  if (!this.isOnline || this.syncQueue.length === 0) return;
-
-  console.log(`🔄 Syncing ${this.syncQueue.length} pending changes...`);
-  
-  // Sort queue by timestamp to maintain order
-  const queue = [...this.syncQueue].sort((a, b) => 
-    new Date(a.timestamp) - new Date(b.timestamp)
-  );
-  this.syncQueue = [];
-
-  for (const item of queue) {
-    try {
-      await this.executeSyncOperation(item);
-      console.log(`✅ Synced: ${item.id}`);
-    } catch (error) {
-      console.error(`❌ Sync failed for ${item.id}:`, error);
-      // Re-add to queue with exponential backoff
-      this.requeueWithBackoff(item);
-    }
-  }
-}
-
-async executeSyncOperation(operation) {
-  // Execute with transaction support
-  const transactionId = `sync_${operation.id}_${Date.now()}`;
-  await offlineManager.beginTransaction(transactionId);
-  
-  try {
-    const result = await operation.syncFunction();
-    await offlineManager.commitTransaction(transactionId);
-    return result;
-  } catch (error) {
-    await offlineManager.rollbackTransaction(transactionId);
-    throw error;
-  }
+#### Sale Record
+```json
+{
+  "id": "string",
+  "sale_number": "string",
+  "customer_name": "string",
+  "customer_email": "string",
+  "customer_phone": "string",
+  "subtotal": "number",
+  "tax_amount": "number",
+  "discount_amount": "number",
+  "total_amount": "number",
+  "payment_method": "string",
+  "payment_status": "string",
+  "store_id": "string",
+  "user_id": "string",
+  "created_at": "string",
+  "updated_at": "string"
 }
 ```
 
-## 6. Conflict Resolution
-
-### Conflict Detection
-Conflicts will be detected by comparing timestamps of local and server data:
-
-#### Resolution Strategy
-1. **Timestamp-based resolution** - Most recent change wins
-2. **User intervention** - For critical conflicts requiring user decision
-3. **Merge strategies** - For compatible data that can be combined
-
-### Implementation
-```javascript
-// Conflict resolution in sync operations
-async resolveConflicts(localData, serverData) {
-  // Simple timestamp-based resolution
-  const localTimestamp = new Date(localData.updated_at || localData.created_at);
-  const serverTimestamp = new Date(serverData.updated_at || serverData.created_at);
-  
-  if (localTimestamp > serverTimestamp) {
-    // Local is newer, update server
-    return { resolution: 'update_server', data: localData };
-  } else if (serverTimestamp > localTimestamp) {
-    // Server is newer, update local
-    return { resolution: 'update_local', data: serverData };
-  } else {
-    // Same timestamp, check content
-    return { resolution: 'no_conflict', data: localData };
-  }
+#### Sale Item
+```json
+{
+  "id": "string",
+  "sale_id": "string",
+  "inventory_id": "string",
+  "item_name": "string",
+  "quantity": "number",
+  "unit_price": "number",
+  "line_total": "number",
+  "user_id": "string",
+  "created_at": "string"
 }
 ```
 
-## 7. Data Models & Storage Schema
+#### Expense Record
+```json
+{
+  "id": "string",
+  "title": "string",
+  "description": "string",
+  "amount": "number",
+  "expense_date": "string",
+  "category": "string",
+  "store_id": "string",
+  "user_id": "string",
+  "created_at": "string",
+  "updated_at": "string"
+}
+```
+
+### Authentication Requirements
+- All API requests require a valid JWT token
+- Tokens are refreshed automatically when expired
+- Offline mode uses cached authentication data
+- Role-based access control enforced on both client and server
+
+## 4. Data Models & ORM Mapping
 
 ### Local Storage Schema
 ```javascript
@@ -283,7 +204,63 @@ async resolveConflicts(localData, serverData) {
 }
 ```
 
-## 8. Business Logic Layer
+### ORM Mapping
+The local storage schema maps to the Supabase database tables as follows:
+
+| Local Storage | Supabase Table | Key Mapping |
+|---------------|----------------|-------------|
+| User Profile | profiles | id → user_id |
+| Store Data | stores | id → id |
+| Inventory Item | inventory | id → id |
+| Sale Record | sales | id → id |
+| Sale Item | sale_items | id → id |
+| Expense Record | expenses | id → id |
+
+## 5. Business Logic Layer
+
+### Data Preloading Logic
+Upon successful login, the application will preload data for all screens to ensure instant navigation:
+
+#### Data to Preload
+- User profile and role information
+- Store information (for owners and workers)
+- Complete inventory data
+- Sales history
+- Expense records
+- Dashboard metrics and charts data
+
+#### Implementation Approach
+```javascript
+// In App.js or a dedicated preloader service
+const preloadAllData = async (userId, userRole, storeId) => {
+  try {
+    // Preload user profile
+    await offlineDataService.getUserProfile(userId);
+    
+    // Preload stores (for owners/workers)
+    if (userRole !== 'individual') {
+      await offlineDataService.getStores(userId, userRole);
+    }
+    
+    // Preload inventory
+    await offlineDataService.getInventory(storeId, userId, userRole);
+    
+    // Preload sales
+    await offlineDataService.getSales(storeId, userId, userRole);
+    
+    // Preload expenses
+    await offlineDataService.getExpenses(storeId, userId, userRole);
+    
+    // Preload dashboard data
+    await preloadDashboardData(userId, userRole, storeId);
+    
+    console.log('✅ All data preloaded successfully');
+  } catch (error) {
+    console.error('Error preloading data:', error);
+    // Fallback to cached data if available
+  }
+};
+```
 
 ### Preloading Service
 A dedicated service will handle the initial data preloading:
@@ -381,45 +358,65 @@ class EnhancedOfflineManager extends OfflineManager {
 }
 ```
 
-## 9. UI/UX Considerations
+## 6. Middleware & Interceptors
 
-### Offline Indicator
-Enhance the offline indicator to show sync status:
+### Network Interceptor
+A network interceptor will monitor connectivity status and trigger sync operations:
 
 ```javascript
-// Enhanced OfflineIndicator component
-const OfflineIndicator = () => {
-  const isOnline = offlineManager.isConnected();
-  const pendingSync = offlineManager.getSyncStatus().pendingSync;
+// Network interceptor in OfflineManager
+class NetworkInterceptor {
+  constructor(offlineManager) {
+    this.offlineManager = offlineManager;
+    this.init();
+  }
   
-  return (
-    <View style={styles.indicator}>
-      {!isOnline && (
-        <View style={[styles.status, styles.offline]}>
-          <MaterialIcons name="cloud-off" size={16} color="white" />
-          <Text style={styles.statusText}>Offline</Text>
-        </View>
-      )}
-      {pendingSync > 0 && (
-        <View style={[styles.status, styles.syncing]}>
-          <MaterialIcons name="sync" size={16} color="white" />
-          <Text style={styles.statusText}>Syncing ({pendingSync})</Text>
-        </View>
-      )}
-    </View>
-  );
+  init() {
+    // Listen for network changes
+    const unsubscribe = NetInfo.addEventListener(state => {
+      console.log('🌐 Network status changed:', state);
+      const wasOffline = !this.offlineManager.isOnline;
+      this.offlineManager.isOnline = state.isConnected;
+      
+      if (wasOffline && this.offlineManager.isOnline) {
+        console.log('✅ Back online - processing sync queue');
+        this.offlineManager.syncWithConflictResolution();
+      } else if (!this.offlineManager.isOnline) {
+        console.log('⚠️ Offline mode activated');
+      }
+      
+      this.offlineManager.notifyListeners();
+    });
+    
+    return unsubscribe;
+  }
+}
+```
+
+### Request Interceptor
+A request interceptor will handle offline requests by queuing them:
+
+```javascript
+// Request interceptor
+const requestInterceptor = async (requestConfig) => {
+  // Check if online
+  if (offlineManager.isConnected()) {
+    return requestConfig; // Proceed with request
+  }
+  
+  // Queue request for later
+  const operationKey = `queued_request_${Date.now()}`;
+  const syncFunction = async () => {
+    // Re-execute the original request
+    // Implementation depends on specific API client
+  };
+  
+  offlineManager.addToSyncQueue(operationKey, requestConfig, syncFunction);
+  throw new Error('OFFLINE_MODE'); // Prevent request from proceeding
 };
 ```
 
-### User Feedback
-Provide clear feedback during sync operations:
-
-1. Show sync progress in the UI
-2. Notify users of successful sync completion
-3. Alert users to any sync conflicts that require attention
-4. Indicate when all data has been preloaded
-
-## 10. Testing Strategy
+## 7. Testing Strategy
 
 ### Unit Tests
 1. Test data preloading functionality
@@ -460,7 +457,17 @@ describe('OfflineOnlineSync', () => {
 });
 ```
 
-## 11. Performance Considerations
+### Offline Testing Scenarios
+1. User logs in while offline - should load cached data
+2. User performs actions while offline - should queue operations
+3. User goes online - should sync all queued operations
+4. Network interruption during sync - should resume sync
+5. Conflicting changes - should resolve based on timestamps
+6. Large data sets - should handle efficiently
+7. App restart during offline work - should preserve data
+8. Multiple devices with same user - should sync correctly
+
+## 8. Performance Considerations
 
 ### Memory Management
 - Implement data pagination for large datasets
@@ -477,7 +484,7 @@ describe('OfflineOnlineSync', () => {
 - Implement data compression for large objects
 - Regular cleanup of obsolete cached data
 
-## 12. Security Considerations
+## 9. Security Considerations
 
 ### Data Encryption
 - Encrypt sensitive data in local storage
@@ -489,7 +496,7 @@ describe('OfflineOnlineSync', () => {
 - Validate permissions before allowing operations
 - Securely store authentication tokens
 
-## 13. Error Handling & Recovery
+## 10. Error Handling & Recovery
 
 ### Error Categories
 1. Network errors
@@ -502,3 +509,83 @@ describe('OfflineOnlineSync', () => {
 2. Manual sync trigger for persistent errors
 3. Data rollback for failed operations
 4. User notification for critical errors
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

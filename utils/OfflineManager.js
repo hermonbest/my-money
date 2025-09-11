@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import NetInfo from '@react-native-community/netinfo';
 import { supabase } from './supabase';
+// Remove direct import of networkInterceptor to break circular dependency
+// We'll attach it after both are initialized
 
 class OfflineManager {
   constructor() {
@@ -9,39 +10,31 @@ class OfflineManager {
     this.listeners = [];
     this.transactions = new Map(); // Track active transactions for rollback
     this.initialized = false;
+    this.syncInProgress = false;
+    this.networkInterceptor = null;
     this.init();
   }
 
   async init() {
     try {
-      // Check initial network state
-      const netInfo = await NetInfo.fetch();
-      this.isOnline = netInfo.isConnected;
-      
-      // Listen for network changes
-      const unsubscribe = NetInfo.addEventListener(state => {
-        console.log('🌐 Network status changed:', state);
-        const wasOffline = !this.isOnline;
-        this.isOnline = state.isConnected;
-        
-        if (wasOffline && this.isOnline) {
-          console.log('✅ Back online - processing sync queue');
-          this.syncPendingChanges();
-        } else if (!this.isOnline) {
-          console.log('⚠️ Offline mode activated');
-        }
-        
-        this.notifyListeners();
-      });
-      
-      // Store unsubscribe function for cleanup
-      this.unsubscribe = unsubscribe;
+      // We'll set the network status after attachment
       this.initialized = true;
+      console.log('🔄 OfflineManager initialized');
     } catch (error) {
       console.error('Error initializing OfflineManager:', error);
       this.isOnline = true; // Default to online if detection fails
       this.initialized = true;
     }
+  }
+
+  // Method to attach network interceptor after both are created
+  attachNetworkInterceptor(networkInterceptorInstance) {
+    this.networkInterceptor = networkInterceptorInstance;
+    // Attach this offline manager to the network interceptor
+    this.networkInterceptor.attachToOfflineManager(this);
+    // Set initial status
+    this.isOnline = this.networkInterceptor.getCurrentStatus().isOnline;
+    console.log('🔄 OfflineManager attached to network interceptor with status:', this.isOnline);
   }
 
   // Add listener for network state changes
@@ -53,13 +46,23 @@ class OfflineManager {
   }
 
   notifyListeners() {
-    this.listeners.forEach(listener => listener(this.isOnline));
+    this.listeners.forEach(listener => {
+      try {
+        listener(this.isOnline);
+      } catch (error) {
+        console.error('Error notifying network listener:', error);
+      }
+    });
   }
 
   // Check if currently online
   isConnected() {
     // If not initialized yet, assume online to avoid blocking the app
     if (!this.initialized) {
+      return true;
+    }
+    // If no network interceptor attached, assume online
+    if (!this.networkInterceptor) {
       return true;
     }
     return this.isOnline;
@@ -125,14 +128,24 @@ class OfflineManager {
       key,
       data,
       syncFunction,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      attempts: 0
     });
   }
 
-  // Sync pending changes when back online
-  async syncPendingChanges() {
-    if (!this.isOnline || this.syncQueue.length === 0) return;
+  // Enhanced sync with conflict resolution and retry logic
+  async syncWithConflictResolution() {
+    if (this.syncInProgress) {
+      console.log('Sync already in progress, skipping...');
+      return;
+    }
 
+    if (!this.isOnline || this.syncQueue.length === 0) {
+      console.log('No sync needed - online status:', this.isOnline, 'queue length:', this.syncQueue.length);
+      return;
+    }
+
+    this.syncInProgress = true;
     console.log(`🔄 Syncing ${this.syncQueue.length} pending changes...`);
     
     const queue = [...this.syncQueue];
@@ -140,14 +153,49 @@ class OfflineManager {
 
     for (const item of queue) {
       try {
-        await item.syncFunction();
+        await this.processSyncItem(item);
         console.log(`✅ Synced: ${item.key}`);
       } catch (error) {
         console.error(`❌ Sync failed for ${item.key}:`, error);
-        // Re-add to queue if sync fails
-        this.syncQueue.push(item);
+        // Re-add to queue with backoff if sync fails
+        await this.requeueWithBackoff(item);
       }
     }
+    
+    this.syncInProgress = false;
+    console.log('🔄 Sync process completed');
+  }
+
+  // Process individual sync item with retry logic
+  async processSyncItem(item) {
+    try {
+      await item.syncFunction();
+    } catch (error) {
+      console.error(`❌ Sync failed for ${item.key}:`, error);
+      throw error;
+    }
+  }
+
+  // Requeue item with exponential backoff
+  async requeueWithBackoff(item) {
+    item.attempts = (item.attempts || 0) + 1;
+    
+    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+    const delay = Math.min(1000 * Math.pow(2, item.attempts - 1), 30000);
+    
+    console.log(`🔄 Requeuing ${item.key} with ${delay}ms delay (attempt ${item.attempts})`);
+    
+    setTimeout(() => {
+      this.syncQueue.push(item);
+      if (this.isOnline) {
+        this.syncWithConflictResolution();
+      }
+    }, delay);
+  }
+
+  // Sync pending changes when back online
+  async syncPendingChanges() {
+    await this.syncWithConflictResolution();
   }
 
   // Get all local data keys
@@ -178,7 +226,8 @@ class OfflineManager {
     return {
       isOnline: this.isOnline,
       pendingSync: this.syncQueue.length,
-      lastSync: new Date().toISOString()
+      lastSync: new Date().toISOString(),
+      syncInProgress: this.syncInProgress
     };
   }
 
