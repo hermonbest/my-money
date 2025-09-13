@@ -30,8 +30,8 @@ import StoreSelector from "../components/StoreSelector";
 
 export default function SalesScreen({ navigation }) {
   const { language } = useLanguage();
-  // Get network status directly from offlineManager
-  const isOnline = offlineManager.isConnected();
+  // Get network status as reactive state
+  const [isOnline, setIsOnline] = useState(offlineManager.isConnected());
   const [inventory, setInventory] = useState([]);
   const [sales, setSales] = useState([]);
   const [cart, setCart] = useState([]);
@@ -47,6 +47,15 @@ export default function SalesScreen({ navigation }) {
   const [customerName, setCustomerName] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [completingSale, setCompletingSale] = useState(false);
+
+  // Listen for network status changes
+  useEffect(() => {
+    const unsubscribe = offlineManager.addNetworkListener((isOnlineStatus) => {
+      setIsOnline(isOnlineStatus);
+    });
+    
+    return unsubscribe;
+  }, []);
   
   // Tab state
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' or 'history'

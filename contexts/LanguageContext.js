@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { centralizedStorage } from '../src/storage/index';
 
 const LanguageContext = createContext();
 
@@ -21,7 +21,7 @@ export const LanguageProvider = ({ children }) => {
 
   const loadLanguage = async () => {
     try {
-      const savedLanguage = await AsyncStorage.getItem('app_language');
+      const savedLanguage = await centralizedStorage.getSecure('app_language', false);
       if (savedLanguage) {
         setLanguage(savedLanguage);
       }
@@ -35,7 +35,7 @@ export const LanguageProvider = ({ children }) => {
   const changeLanguage = async (newLanguage) => {
     try {
       setLanguage(newLanguage);
-      await AsyncStorage.setItem('app_language', newLanguage);
+      await centralizedStorage.setSecure('app_language', newLanguage);
     } catch (error) {
       console.error('Error saving language:', error);
     }

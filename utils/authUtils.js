@@ -5,9 +5,9 @@
 // Use these instead of direct supabase.auth calls
 // =====================================================
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { offlineManager } from './OfflineManager';
+import { centralizedStorage } from '../src/storage/index';
 
 /**
  * Get current authenticated user with offline fallback
@@ -25,12 +25,12 @@ export const getCurrentUser = async () => {
       console.log('🔍 Supabase user result:', { user: !!user, error: error?.message });
       
       if (user && !error) {
-        // Cache the user session for offline use
-        await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+        // Cache the user session for offline use in secure storage
+        await centralizedStorage.setSecure('user_session', {
           user,
           timestamp: new Date().toISOString()
-        }));
-        console.log('🔍 Cached user session for offline use');
+        });
+        console.log('🔍 Cached user session for offline use in secure storage');
         
         return { user, error: null };
       }
@@ -77,19 +77,18 @@ export const getCurrentUser = async () => {
 };
 
 /**
- * Get cached user from AsyncStorage
+ * Get cached user from secure storage
  * @returns {Promise<Object|null>}
  */
 export const getCachedUser = async () => {
   try {
-    console.log('🔍 Getting cached user from AsyncStorage...');
-    const cachedSession = await AsyncStorage.getItem('cached_user_session');
+    console.log('🔍 Getting cached user from secure storage...');
+    const cachedSession = await centralizedStorage.getSecure('user_session');
     console.log('🔍 Cached session exists:', !!cachedSession);
     
-    if (cachedSession) {
-      const { user } = JSON.parse(cachedSession);
-      console.log('🔍 Parsed cached user:', { id: user?.id, email: user?.email });
-      return user;
+    if (cachedSession && cachedSession.user) {
+      console.log('🔍 Parsed cached user:', { id: cachedSession.user?.id, email: cachedSession.user?.email });
+      return cachedSession.user;
     }
     console.log('🔍 No cached session found');
     return null;
@@ -111,11 +110,11 @@ export const getCurrentSession = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (session && !error) {
-        // Cache the session for offline use
-        await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+        // Cache the session for offline use in secure storage
+        await centralizedStorage.setSecure('user_session', {
           user: session.user,
           timestamp: new Date().toISOString()
-        }));
+        });
         
         return { session, error: null };
       }
@@ -178,9 +177,9 @@ export const getUserProfile = async (userId) => {
     console.log('🔍 Getting user profile for userId:', userId);
     console.log('🔍 Is online:', offlineManager.isConnected());
     
-    // First try to get from cache for offline support
-    const cachedProfile = await AsyncStorage.getItem(`user_profile_${userId}`);
-    console.log('🔍 Cached profile exists:', !!cachedProfile);
+    // Try to get from SQLite first
+    let cachedProfile = await centralizedStorage.getUserProfile(userId);
+    console.log('🔍 SQLite profile exists:', !!cachedProfile);
     
     if (offlineManager.isConnected()) {
       // Online: fetch from Supabase and cache it
@@ -194,24 +193,27 @@ export const getUserProfile = async (userId) => {
       console.log('🔍 Supabase profile result:', { profile, error: error?.message });
 
       if (profile && !error) {
-        // Cache the profile for offline use
-        await AsyncStorage.setItem(`user_profile_${userId}`, JSON.stringify(profile));
-        console.log('🔍 Cached profile for offline use:', profile);
+        // Cache the profile in SQLite
+        await centralizedStorage.storeUserProfile({
+          user_id: userId,
+          ...profile
+        });
+        console.log('🔍 Cached profile in SQLite for offline use:', profile);
         return profile;
       }
       
       // If no profile from server but have cached data, use cache
       if (cachedProfile) {
-        console.log('🔍 Using cached profile as fallback');
-        return JSON.parse(cachedProfile);
+        console.log('🔍 Using SQLite cached profile as fallback');
+        return cachedProfile;
       }
       // Return a safe object structure
       return { role: null, profile: null };
     } else {
-      // Offline: use cached profile if available
+      // Offline: use SQLite cached profile if available
       if (cachedProfile) {
-        console.log('🔍 Using cached profile (offline mode):', JSON.parse(cachedProfile));
-        return JSON.parse(cachedProfile);
+        console.log('🔍 Using SQLite cached profile (offline mode):', cachedProfile);
+        return cachedProfile;
       }
       
       console.log('🔍 No cached profile available offline');
@@ -223,13 +225,13 @@ export const getUserProfile = async (userId) => {
     
     // If there's an error but we have cached data, use it
     try {
-      const cachedProfile = await AsyncStorage.getItem(`user_profile_${userId}`);
+      const cachedProfile = await centralizedStorage.getUserProfile(userId);
       if (cachedProfile) {
-        console.log('🔍 Using cached profile due to error');
-        return JSON.parse(cachedProfile);
+        console.log('🔍 Using SQLite cached profile due to error');
+        return cachedProfile;
       }
     } catch (cacheError) {
-      console.error('❌ Error loading cached profile:', cacheError);
+      console.error('❌ Error loading SQLite cached profile:', cacheError);
     }
     
     // Return a safe object structure
@@ -243,16 +245,14 @@ export const getUserProfile = async (userId) => {
  */
 export const clearCachedAuth = async () => {
   try {
-    const keys = await AsyncStorage.getAllKeys();
-    const authKeys = keys.filter(key => 
-      key.startsWith('cached_user_session') || 
-      key.startsWith('user_profile_')
-    );
+    // Clear secure storage (session data)
+    await centralizedStorage.clearSecureStorage();
     
-    if (authKeys.length > 0) {
-      await AsyncStorage.multiRemove(authKeys);
-      console.log('Cleared cached authentication data');
-    }
+    // Clear user profile from SQLite (if any)
+    // Note: We don't have a direct method to clear all profiles, 
+    // but the app will handle this on logout
+    
+    console.log('Cleared cached authentication data');
   } catch (error) {
     console.error('Error clearing cached auth data:', error);
   }

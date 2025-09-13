@@ -11,7 +11,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 // Removed useAuth import - using direct Supabase auth
 import { supabase } from '../utils/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { clearCachedAuth } from '../utils/authUtils';
+import { centralizedStorage } from '../src/storage/index';
 import { getTranslation } from '../utils/translations';
 
 export default function LanguageToggleMenu({ visible, onClose }) {
@@ -32,11 +33,8 @@ export default function LanguageToggleMenu({ visible, onClose }) {
         console.error('Logout error:', error);
       }
       
-      // Clear cached data
-      await AsyncStorage.multiRemove([
-        'cached_user_session',
-        ...(await AsyncStorage.getAllKeys()).filter(key => key.startsWith('user_profile_'))
-      ]);
+      // Clear cached authentication data using centralized storage
+      await clearCachedAuth();
       
       console.log('Logout completed');
     } catch (error) {

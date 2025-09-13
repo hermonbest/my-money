@@ -103,16 +103,19 @@ export default function AddExpenseScreen({ navigation }) {
       };
 
       // Use offline data service to add expense
-      const result = await offlineDataService.addExpense(expenseData, userRole)
-        .catch(async (error) => {
-          console.error('Error in addExpense:', error);
-          // If we're offline, this is expected - show appropriate message
-          if (!isOnline) {
-            return { success: true, offline: true };
-          }
-          // For other errors, re-throw to be caught by the outer catch
+      let result;
+      try {
+        result = await offlineDataService.addExpense(expenseData, userRole);
+      } catch (error) {
+        console.error('Error in addExpense:', error);
+        // If we're offline, this is expected - show appropriate message
+        if (!isOnline) {
+          result = { success: true, offline: true };
+        } else {
+          // For online errors, re-throw to be caught by the outer catch
           throw error;
-        });
+        }
+      }
       
       console.log('Expense operation result:', result);
       

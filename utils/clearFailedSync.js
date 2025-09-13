@@ -1,34 +1,19 @@
 /**
- * Utility to clear failed sync items from AsyncStorage
- * This helps clean up old sync items that were created with wrong parameter names
+ * Utility to clear failed sync items from SQLite sync queue
+ * This helps clean up old sync items that are stuck in failed state
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { centralizedStorage } from '../src/storage/index';
+import { syncDispatcher } from '../src/storage/SyncDispatcher';
 
 export const clearFailedSyncItems = async () => {
   try {
-    console.log('🧹 Clearing failed sync items...');
+    console.log('🧹 Clearing failed sync items from SQLite...');
     
-    // Get all keys from AsyncStorage
-    const keys = await AsyncStorage.getAllKeys();
+    // Clear failed operations using the dispatcher
+    const result = await syncDispatcher.clearFailedOperations();
     
-    // Find sync items that might be failing
-    const syncKeys = keys.filter(key => 
-      key.startsWith('process_sale_') || 
-      key.startsWith('add_inventory_') ||
-      key.startsWith('add_expense_') ||
-      key.startsWith('add_sale_')
-    );
-    
-    console.log(`🔍 Found ${syncKeys.length} sync items to check`);
-    
-    // Remove all sync items (they will be recreated if needed)
-    if (syncKeys.length > 0) {
-      await AsyncStorage.multiRemove(syncKeys);
-      console.log(`✅ Cleared ${syncKeys.length} sync items`);
-    } else {
-      console.log('✅ No sync items found to clear');
-    }
+    console.log(`✅ Cleared ${result.cleared || 0} failed sync operations`);
     
     return true;
   } catch (error) {
@@ -39,33 +24,16 @@ export const clearFailedSyncItems = async () => {
 
 export const clearAllSyncData = async () => {
   try {
-    console.log('🧹 Clearing all sync data...');
+    console.log('🧹 Clearing ALL sync data from SQLite...');
     
-    // Get all keys from AsyncStorage
-    const keys = await AsyncStorage.getAllKeys();
+    // Clear all pending operations and reset sync queue
+    await centralizedStorage.clearAllAppData();
     
-    // Find all sync-related keys
-    const syncKeys = keys.filter(key => 
-      key.includes('_sync') ||
-      key.startsWith('process_') ||
-      key.startsWith('add_') ||
-      key.startsWith('update_') ||
-      key.startsWith('delete_')
-    );
-    
-    console.log(`🔍 Found ${syncKeys.length} sync-related items to clear`);
-    
-    // Remove all sync items
-    if (syncKeys.length > 0) {
-      await AsyncStorage.multiRemove(syncKeys);
-      console.log(`✅ Cleared ${syncKeys.length} sync-related items`);
-    } else {
-      console.log('✅ No sync-related items found to clear');
-    }
+    console.log('✅ Cleared all sync data and reset storage');
     
     return true;
   } catch (error) {
-    console.error('❌ Error clearing sync data:', error);
+    console.error('❌ Error clearing all sync data:', error);
     return false;
   }
 };

@@ -16,8 +16,8 @@ import { LineChart } from 'react-native-chart-kit';
 import { supabase } from '../utils/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useStore } from '../contexts/StoreContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCurrentUser } from '../utils/authUtils';
+// AsyncStorage removed - using centralized storage
+import { getCurrentUser, clearCachedAuth } from '../utils/authUtils';
 // Removed useAuth import - using direct Supabase auth
 import { getTranslation } from '../utils/translations';
 import { 
@@ -67,11 +67,8 @@ export default function UnifiedDashboardScreen({ navigation }) {
         console.error('Logout error:', error);
       }
       
-      // Clear cached data
-      await AsyncStorage.multiRemove([
-        'cached_user_session',
-        ...(await AsyncStorage.getAllKeys()).filter(key => key.startsWith('user_profile_'))
-      ]);
+      // Clear cached authentication data using centralized storage
+      await clearCachedAuth();
       
       console.log('Logout completed');
     } catch (error) {

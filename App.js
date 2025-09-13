@@ -5,13 +5,17 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View, Text, StyleSheet } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Removed AsyncStorage import - now using centralized storage
 
 // Import services
 import { supabase } from "./utils/supabase";
 import { offlineManager } from "./utils/OfflineManager";
 import { networkInterceptor } from "./utils/NetworkInterceptor"; // Add this import
 import { dataPreloader } from "./utils/DataPreloader";
+import { centralizedStorage } from "./src/storage/index";
+
+// Import SQLite initialization
+import { initializeAppWithSQLite, isSQLiteReady } from './utils/AppInitializer';
 
 // Import components
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -46,6 +50,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
+  
+  // SQLite initialization state
+  const [isSQLiteReady, setIsSQLiteReady] = useState(false);
 
   // StoreContext sync will be handled inside the provider
 
@@ -58,6 +65,31 @@ export default function App() {
   useEffect(() => {
     checkAuthState();
   }, []);
+
+  // SQLite initialization
+  useEffect(() => {
+    initializeSQLite();
+  }, []);
+
+  const initializeSQLite = async () => {
+    try {
+      console.log('🚀 Initializing SQLite system...');
+      
+      // Initialize SQLite system
+      const result = await initializeAppWithSQLite();
+
+      if (result.success) {
+        console.log('✅ SQLite system ready!');
+        setIsSQLiteReady(true);
+      } else {
+        console.error('❌ SQLite initialization failed:', result.error);
+        setIsSQLiteReady(true); // Continue anyway with fallback
+      }
+    } catch (error) {
+      console.error('❌ SQLite initialization error:', error);
+      setIsSQLiteReady(true); // Continue anyway with fallback
+    }
+  };
 
   const refreshAuthState = async () => {
     setIsLoading(true);
@@ -85,11 +117,11 @@ export default function App() {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             user = session.user;
-            // Cache user session
-            await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+            // Cache user session in secure storage
+            await centralizedStorage.setSecure('user_session', {
               user: session.user,
               timestamp: new Date().toISOString()
-            }));
+            });
           }
         } catch (error) {
           console.warn('⚠️ Online session check failed, trying cached session:', error.message);
@@ -99,14 +131,9 @@ export default function App() {
 
       // If no online session, try cached session
       if (!user) {
-        const cachedSession = await AsyncStorage.getItem('cached_user_session');
-        if (cachedSession) {
-          try {
-            const { user: cachedUser } = JSON.parse(cachedSession);
-            user = cachedUser;
-          } catch (parseError) {
-            console.error('❌ Error parsing cached session:', parseError);
-          }
+        const cachedSession = await centralizedStorage.getSecure('user_session');
+        if (cachedSession && cachedSession.user) {
+          user = cachedSession.user;
         }
       }
 
@@ -127,8 +154,11 @@ export default function App() {
               
             if (!profileError && dbProfile) {
               console.log('🔍 Found profile in database:', dbProfile);
-              // Cache the profile
-              await AsyncStorage.setItem(`user_profile_${user.id}`, JSON.stringify(dbProfile));
+              // Cache the profile in SQLite
+              await centralizedStorage.storeUserProfile({
+                user_id: user.id,
+                ...dbProfile
+              });
               profile = dbProfile;
             }
           } catch (dbError) {
@@ -164,29 +194,25 @@ export default function App() {
       
       // Try cached session as fallback
       try {
-        const cachedSession = await AsyncStorage.getItem('cached_user_session');
-        if (cachedSession) {
-          try {
-            const { user } = JSON.parse(cachedSession);
-            setCurrentUser(user);
-            const profile = await loadUserProfile(user.id);
+        const cachedSession = await centralizedStorage.getSecure('user_session');
+        if (cachedSession && cachedSession.user) {
+          const user = cachedSession.user;
+          setCurrentUser(user);
+          const profile = await loadUserProfile(user.id);
+          
+          if (profile?.role) {
+            setUserRole(profile.role);
+            // Sync with StoreContext
+            if (syncUserRole) syncUserRole(profile.role);
+            setIsAuthenticated(true);
+            setNeedsProfileSetup(false);
             
-            if (profile?.role) {
-              setUserRole(profile.role);
-              // Sync with StoreContext
-              if (syncUserRole) syncUserRole(profile.role);
-              setIsAuthenticated(true);
-              setNeedsProfileSetup(false);
-              
-              // Preload all data for instant navigation
-              try {
-                await preloadAllData(user.id, profile.role, profile.store_id);
-              } catch (preloadError) {
-                console.warn('⚠️ Data preloading failed:', preloadError.message);
-              }
+            // Preload all data for instant navigation
+            try {
+              await preloadAllData(user.id, profile.role, profile.store_id);
+            } catch (preloadError) {
+              console.warn('⚠️ Data preloading failed:', preloadError.message);
             }
-          } catch (parseError) {
-            console.error('❌ Error parsing cached session:', parseError);
           }
         }
       } catch (cacheError) {
@@ -231,16 +257,11 @@ export default function App() {
     try {
       console.log('🔍 Loading user profile for:', userId);
       
-      // Try to get cached profile first
-      const cachedProfile = await AsyncStorage.getItem(`user_profile_${userId}`);
+      // Try to get profile from SQLite first
+      const cachedProfile = await centralizedStorage.getUserProfile(userId);
       if (cachedProfile) {
-        try {
-          const parsedProfile = JSON.parse(cachedProfile);
-          console.log('✅ Using cached profile:', parsedProfile);
-          return parsedProfile;
-        } catch (parseError) {
-          console.error('❌ Error parsing cached profile:', parseError);
-        }
+        console.log('✅ Using SQLite cached profile:', cachedProfile);
+        return cachedProfile;
       }
       
       // If online, try to fetch from database
@@ -254,8 +275,13 @@ export default function App() {
           
           if (error) throw error;
           
-          // Cache the profile
-          await AsyncStorage.setItem(`user_profile_${userId}`, JSON.stringify(profile));
+          // Cache the profile in SQLite
+          if (profile) {
+            await centralizedStorage.storeUserProfile({
+              user_id: userId,
+              ...profile
+            });
+          }
           return profile;
         } catch (dbError) {
           console.warn('⚠️ Database profile fetch failed:', dbError.message);
@@ -280,12 +306,12 @@ export default function App() {
       if (session?.user) {
         setCurrentUser(session.user);
         
-        // Cache user session
+        // Cache user session in secure storage
         try {
-          await AsyncStorage.setItem('cached_user_session', JSON.stringify({
+          await centralizedStorage.setSecure('user_session', {
             user: session.user,
             timestamp: new Date().toISOString()
-          }));
+          });
         } catch (cacheError) {
           console.error('❌ Error caching user session:', cacheError);
         }
@@ -341,8 +367,11 @@ export default function App() {
                 setIsAuthenticated(true);
                 setNeedsProfileSetup(false);
                 
-                // Cache the new profile and ensure it's fresh
-                await AsyncStorage.setItem(`user_profile_${session.user.id}`, JSON.stringify(newProfile));
+                // Cache the new profile in SQLite
+                await centralizedStorage.storeUserProfile({
+                  user_id: session.user.id,
+                  ...newProfile
+                });
                 
                 // Start data preloading in background (non-blocking)
                 preloadAllData(session.user.id, 'worker', assignment.store_id).catch(preloadError => {
@@ -370,12 +399,7 @@ export default function App() {
         if (event === 'SIGNED_OUT') {
           // Clear cached data
           try {
-            await AsyncStorage.removeItem('cached_user_session');
-            const allKeys = await AsyncStorage.getAllKeys();
-            const profileKeys = allKeys.filter(key => key.startsWith('user_profile_'));
-            if (profileKeys.length > 0) {
-              await AsyncStorage.multiRemove(profileKeys);
-            }
+            await centralizedStorage.clearSecureStorage();
             
             // Clear preloaded data
             dataPreloader.clearPreloadedData();
@@ -395,7 +419,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Individual Navigation (solo operator)
+  // Individual Navigation (solo operator - no store management)
   const IndividualTabs = () => (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -523,11 +547,12 @@ export default function App() {
                   This app is not properly configured. Please check your environment variables.
                 </Text>
               </View>
-            ) : isLoading || isPreloading ? (
+            ) : isLoading || isPreloading || !isSQLiteReady ? (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
                 <ActivityIndicator size="large" color="#2563eb" />
                 <Text style={{ marginTop: 16, fontSize: 16, color: '#6b7280' }}>
-                  {isPreloading ? "Preloading data..." : "Loading..."}
+                  {!isSQLiteReady ? "Initializing database..." : 
+                   isPreloading ? "Preloading data..." : "Loading..."}
                 </Text>
               </View>
             ) : isAuthenticated ? (

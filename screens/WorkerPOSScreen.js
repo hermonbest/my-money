@@ -16,11 +16,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
 import { offlineManager } from '../utils/OfflineManager';
 import { offlineDataService } from '../utils/OfflineDataService';
-import { getCurrentUser } from '../utils/authUtils';
+import { getCurrentUser, clearCachedAuth } from '../utils/authUtils';
 import { handleSupabaseError, handleInventoryError, handleSaleError, showErrorAlert, logError } from '../utils/errorHandling';
 import { useStore } from '../contexts/StoreContext';
 import HeaderWithLogout from '../components/HeaderWithLogout';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// AsyncStorage removed - using centralized storage
 import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
 import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
@@ -37,8 +37,17 @@ export default function WorkerPOSScreen({ navigation, route }) {
   
   // No modal state needed - using navigation to checkout screen
   
-  // Network status
-  const isOnline = offlineManager.isConnected();
+  // Network status as reactive state
+  const [isOnline, setIsOnline] = useState(offlineManager.isConnected());
+  
+  // Listen for network status changes
+  useEffect(() => {
+    const unsubscribe = offlineManager.addNetworkListener((isOnlineStatus) => {
+      setIsOnline(isOnlineStatus);
+    });
+    
+    return unsubscribe;
+  }, []);
   
   // Component initialization
   useEffect(() => {
@@ -95,11 +104,8 @@ export default function WorkerPOSScreen({ navigation, route }) {
         console.error('Logout error:', error);
       }
       
-      // Clear cached data
-      await AsyncStorage.multiRemove([
-        'cached_user_session',
-        ...(await AsyncStorage.getAllKeys()).filter(key => key.startsWith('user_profile_'))
-      ]);
+      // Clear cached authentication data using centralized storage
+      await clearCachedAuth();
       
       console.log('Logout completed');
     } catch (error) {

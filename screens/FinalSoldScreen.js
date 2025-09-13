@@ -13,7 +13,7 @@ import { useStore } from '../contexts/StoreContext';
 import { getCurrentUser, getUserProfile } from '../utils/authUtils';
 import { offlineDataService } from '../utils/OfflineDataService';
 import { offlineManager } from '../utils/OfflineManager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// AsyncStorage removed - using centralized storage
 import { showErrorAlert, handleSupabaseError, logError } from '../utils/errorHandling';
 import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
 import { getTranslation } from '../utils/translations'; // Import getTranslation function

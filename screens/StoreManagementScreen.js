@@ -14,7 +14,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
 import { getCurrentUser } from '../utils/authUtils';
 import { offlineManager } from '../utils/OfflineManager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineDataService } from '../utils/OfflineDataService';
+// AsyncStorage removed - using centralized storage
 import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
 import { useStore } from '../contexts/StoreContext'; // Import useStore hook
 import { getTranslation } from '../utils/translations'; // Import getTranslation function
@@ -45,38 +46,11 @@ export default function StoreManagementScreen({ navigation }) {
       const { user } = await getCurrentUser();
       if (!user) return;
 
-      // Check if online
-      if (offlineManager.isConnected()) {
-        console.log('🌐 Online - loading stores from database');
-        const { data: stores, error } = await supabase
-          .from('stores')
-          .select('*')
-          .eq('owner_id', user.id)
-          .order('name');
-
-        if (error) {
-          console.error('Error loading stores:', error);
-          Alert.alert(getTranslation('error', language), getTranslation('failedToLoadStores', language));
-          return;
-        }
-
-        setStores(stores || []);
-        
-        // Cache stores for offline use
-        await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify(stores || []));
-        console.log('✅ Cached stores for offline use');
-      } else {
-        console.log('📱 Offline - loading stores from cache');
-        // Load from cache
-        const cachedStores = await AsyncStorage.getItem(`stores_${user.id}`);
-        if (cachedStores) {
-          setStores(JSON.parse(cachedStores));
-          console.log('✅ Loaded stores from cache');
-        } else {
-          setStores([]);
-          console.log('⚠️ No cached stores found');
-        }
-      }
+      // Use offline data service for stores
+      console.log('🌐 Loading stores using offline data service');
+      const stores = await offlineDataService.getStores(user.id);
+      setStores(stores || []);
+      console.log('✅ Loaded stores:', stores?.length || 0);
 
     } catch (error) {
       console.error('Error loading stores:', error);

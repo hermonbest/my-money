@@ -1,12 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { centralizedStorage } from '../src/storage/index';
+import { syncDispatcher } from '../src/storage/SyncDispatcher';
 // Remove direct import of networkInterceptor to break circular dependency
 // We'll attach it after both are initialized
 
 class OfflineManager {
   constructor() {
     this.isOnline = true;
-    this.syncQueue = [];
     this.listeners = [];
     this.transactions = new Map(); // Track active transactions for rollback
     this.initialized = false;
@@ -17,9 +17,12 @@ class OfflineManager {
 
   async init() {
     try {
+      // Initialize centralized storage
+      await centralizedStorage.init();
+      
       // We'll set the network status after attachment
       this.initialized = true;
-      console.log('🔄 OfflineManager initialized');
+      console.log('🔄 OfflineManager initialized with centralized storage');
     } catch (error) {
       console.error('Error initializing OfflineManager:', error);
       this.isOnline = true; // Default to online if detection fails
@@ -68,30 +71,25 @@ class OfflineManager {
     return this.isOnline;
   }
 
-  // Store data locally
+  // Store data locally - now deprecated, use centralized storage directly
   async storeLocalData(key, data) {
+    console.warn('⚠️ storeLocalData is deprecated. Use centralizedStorage directly.');
     try {
-      const jsonData = JSON.stringify({
-        data,
-        timestamp: new Date().toISOString(),
-        synced: false
-      });
-      await AsyncStorage.setItem(`offline_${key}`, jsonData);
-      console.log(`📱 Stored locally: ${key}`);
+      // For backward compatibility, store as dashboard cache with short TTL
+      await centralizedStorage.storeDashboardCache(`legacy_${key}`, data, 60);
+      console.log(`📱 Stored locally via centralized storage: ${key}`);
     } catch (error) {
       console.error('Error storing local data:', error);
     }
   }
 
-  // Get data from local storage
+  // Get data from local storage - now deprecated, use centralized storage directly
   async getLocalData(key) {
+    console.warn('⚠️ getLocalData is deprecated. Use centralizedStorage directly.');
     try {
-      const jsonData = await AsyncStorage.getItem(`offline_${key}`);
-      if (jsonData) {
-        const parsed = JSON.parse(jsonData);
-        return parsed.data;
-      }
-      return null;
+      // For backward compatibility, try to get from dashboard cache
+      const data = await centralizedStorage.getDashboardCache(`legacy_${key}`);
+      return data;
     } catch (error) {
       console.error('Error getting local data:', error);
       return null;
@@ -104,164 +102,178 @@ class OfflineManager {
       try {
         // Try to sync immediately
         const result = await syncFunction();
-        await this.storeLocalData(key, data);
+        // No need to store locally anymore - data is in SQLite via the sync function
         console.log(`✅ Synced online: ${key}`);
         return result;
       } catch (error) {
-        console.log(`⚠️ Online sync failed, storing locally: ${key}`);
-        await this.storeLocalData(key, data);
-        this.addToSyncQueue(key, data, syncFunction);
+        console.log(`⚠️ Online sync failed, queuing for later sync: ${key}`);
+        // Add to SQLite sync queue instead of storing locally
+        await this.addToSyncQueue(key, data, syncFunction);
         throw error;
       }
     } else {
-      // Store locally and queue for sync
-      await this.storeLocalData(key, data);
-      this.addToSyncQueue(key, data, syncFunction);
-      console.log(`📱 Stored offline: ${key}`);
+      // Queue for sync when back online
+      await this.addToSyncQueue(key, data, syncFunction);
+      console.log(`📱 Queued for sync when online: ${key}`);
       return { success: true, offline: true };
     }
   }
 
-  // Add to sync queue
-  addToSyncQueue(key, data, syncFunction) {
-    this.syncQueue.push({
-      key,
-      data,
-      syncFunction,
-      timestamp: new Date().toISOString(),
-      attempts: 0
-    });
+  // Add to sync queue - now uses SQLite
+  async addToSyncQueue(key, data, syncFunction = null) {
+    try {
+      // Store in SQLite sync queue
+      const operationKey = key;
+      const tableName = this._extractTableNameFromKey(key);
+      const recordId = data.id || `temp_${Date.now()}`;
+      const operationType = 'INSERT'; // Default operation type
+      
+      await centralizedStorage.addToSyncQueue(
+        operationKey,
+        tableName,
+        recordId,
+        operationType,
+        data,
+        syncFunction ? 'customSyncFunction' : null
+      );
+      
+      console.log(`📤 Added to SQLite sync queue: ${key}`);
+    } catch (error) {
+      console.error('❌ Failed to add to sync queue:', error);
+      // Fallback: store in memory for this session only
+      if (!this.memoryQueue) this.memoryQueue = [];
+      this.memoryQueue.push({
+        key,
+        data,
+        syncFunction,
+        timestamp: new Date().toISOString(),
+        attempts: 0
+      });
+    }
   }
 
-  // Enhanced sync with conflict resolution and retry logic
+  // Helper to extract table name from operation key
+  _extractTableNameFromKey(key) {
+    if (key.includes('inventory')) return 'inventory';
+    if (key.includes('sale')) return 'sales';
+    if (key.includes('expense')) return 'expenses';
+    return 'unknown';
+  }
+
+  // Enhanced sync with dispatcher - now uses SyncDispatcher
   async syncWithConflictResolution() {
+    if (!this.isOnline) {
+      console.log('No sync needed - offline');
+      return;
+    }
+
     if (this.syncInProgress) {
       console.log('Sync already in progress, skipping...');
       return;
     }
 
-    if (!this.isOnline || this.syncQueue.length === 0) {
-      console.log('No sync needed - online status:', this.isOnline, 'queue length:', this.syncQueue.length);
-      return;
-    }
-
     this.syncInProgress = true;
-    console.log(`🔄 Syncing ${this.syncQueue.length} pending changes...`);
     
-    const queue = [...this.syncQueue];
-    this.syncQueue = [];
-
-    for (const item of queue) {
-      try {
-        await this.processSyncItem(item);
-        console.log(`✅ Synced: ${item.key}`);
-      } catch (error) {
-        console.error(`❌ Sync failed for ${item.key}:`, error);
-        // Re-add to queue with backoff if sync fails
-        await this.requeueWithBackoff(item);
-      }
-    }
-    
-    this.syncInProgress = false;
-    console.log('🔄 Sync process completed');
-  }
-
-  // Process individual sync item with retry logic
-  async processSyncItem(item) {
     try {
-      await item.syncFunction();
+      console.log('🚀 Starting sync via dispatcher...');
+      
+      // Use the new dispatcher for all sync operations
+      const results = await syncDispatcher.processPendingOperations();
+      
+      if (results.alreadyInProgress) {
+        console.log('Dispatcher was already processing');
+        return results;
+      }
+
+      console.log(`🏁 Sync completed: ${results.succeeded}/${results.processed} operations succeeded`);
+      
+      if (results.failed > 0) {
+        console.warn(`⚠️ ${results.failed} operations failed:`, results.errors);
+      }
+      
+      return results;
     } catch (error) {
-      console.error(`❌ Sync failed for ${item.key}:`, error);
-      throw error;
+      console.error('❌ Sync process failed:', error);
+      return {
+        processed: 0,
+        succeeded: 0,
+        failed: 1,
+        errors: [{ operation: 'sync_manager', error: error.message }]
+      };
+    } finally {
+      this.syncInProgress = false;
     }
   }
 
-  // Requeue item with exponential backoff
-  async requeueWithBackoff(item) {
-    item.attempts = (item.attempts || 0) + 1;
-    
-    // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
-    const delay = Math.min(1000 * Math.pow(2, item.attempts - 1), 30000);
-    
-    console.log(`🔄 Requeuing ${item.key} with ${delay}ms delay (attempt ${item.attempts})`);
-    
-    setTimeout(() => {
-      this.syncQueue.push(item);
-      if (this.isOnline) {
-        this.syncWithConflictResolution();
-      }
-    }, delay);
-  }
+  // Legacy sync methods - now handled by SyncDispatcher
+  // These are kept for backward compatibility but delegate to the dispatcher
 
   // Sync pending changes when back online
   async syncPendingChanges() {
     await this.syncWithConflictResolution();
   }
 
-  // Get all local data keys
-  async getAllLocalKeys() {
+  // Debug function to inspect SQLite storage contents
+  async debugSQLiteStorage() {
     try {
-      const keys = await AsyncStorage.getAllKeys();
-      return keys.filter(key => key.startsWith('offline_'));
-    } catch (error) {
-      console.error('Error getting local keys:', error);
-      return [];
-    }
-  }
-
-  // Debug function to inspect AsyncStorage contents
-  async debugAsyncStorage() {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      const offlineKeys = allKeys.filter(key => key.startsWith('offline_'));
+      const stats = await centralizedStorage.getStorageStats();
       
-      console.log('🔍 AsyncStorage Debug:');
-      console.log('  - Total keys:', allKeys.length);
-      console.log('  - Offline keys:', offlineKeys.length);
+      console.log('🔍 SQLite Storage Debug:');
+      console.log('  - Storage type:', stats.storageType);
+      console.log('  - Pending sync operations:', stats.pendingSyncOperations);
+      console.log('  - Cached entries:', stats.cachedEntries);
+      console.log('  - Table stats:', stats);
       
-      if (offlineKeys.length > 0) {
-        console.log('  - Offline keys list:', offlineKeys);
-        
-        // Show sample data for each key
-        for (const key of offlineKeys.slice(0, 5)) { // Limit to first 5 for brevity
-          try {
-            const value = await AsyncStorage.getItem(key);
-            const parsed = JSON.parse(value);
-            console.log(`    ${key}:`, {
-              dataLength: Array.isArray(parsed.data) ? parsed.data.length : 'not array',
-              timestamp: parsed.timestamp,
-              synced: parsed.synced
-            });
-          } catch (parseError) {
-            console.log(`    ${key}: (parse error)`);
-          }
-        }
+      // Show pending sync operations
+      const pendingOps = await centralizedStorage.getPendingSyncOperations(10);
+      if (pendingOps.length > 0) {
+        console.log('  - Sample pending operations:');
+        pendingOps.forEach((op, index) => {
+          console.log(`    ${index + 1}. ${op.operation_key} (${op.table_name}/${op.operation_type}) - attempts: ${op.attempts}`);
+        });
       }
     } catch (error) {
-      console.error('Error debugging AsyncStorage:', error);
+      console.error('Error debugging SQLite storage:', error);
     }
   }
 
-  // Clear all offline data
+  // Clear all offline data - now clears SQLite data
   async clearOfflineData() {
     try {
-      const keys = await this.getAllLocalKeys();
-      await AsyncStorage.multiRemove(keys);
-      this.syncQueue = [];
-      console.log('🧹 Cleared all offline data');
+      await centralizedStorage.clearAllAppData();
+      console.log('🧹 Cleared all offline data from SQLite');
     } catch (error) {
       console.error('Error clearing offline data:', error);
     }
   }
 
-  // Get sync status
-  getSyncStatus() {
-    return {
-      isOnline: this.isOnline,
-      pendingSync: this.syncQueue.length,
-      lastSync: new Date().toISOString(),
-      syncInProgress: this.syncInProgress
-    };
+  // Get sync status - now uses dispatcher stats
+  async getSyncStatus() {
+    try {
+      const dispatcherStats = await syncDispatcher.getSyncStats();
+      
+      return {
+        isOnline: this.isOnline,
+        pendingSync: dispatcherStats.pendingOperations,
+        failedOperations: dispatcherStats.failedOperations,
+        retryableOperations: dispatcherStats.retryableOperations,
+        lastSync: dispatcherStats.lastProcessed,
+        syncInProgress: this.syncInProgress || dispatcherStats.isProcessing,
+        storageType: 'SQLite + Dispatcher'
+      };
+    } catch (error) {
+      console.error('Error getting sync status:', error);
+      return {
+        isOnline: this.isOnline,
+        pendingSync: 0,
+        failedOperations: 0,
+        retryableOperations: 0,
+        lastSync: new Date().toISOString(),
+        syncInProgress: this.syncInProgress,
+        storageType: 'SQLite + Dispatcher (error)',
+        error: error.message
+      };
+    }
   }
 
   // Transaction rollback methods
