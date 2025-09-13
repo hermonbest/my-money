@@ -20,6 +20,9 @@ class DataPreloader {
     console.log('🔄 Starting data preloading for user:', { userId, userRole, storeId });
 
     try {
+      // Set preloading flag in DataRepository to reduce logging during preload
+      const { dataRepository } = await import('./DataRepository');
+      dataRepository.isPreloading = true;
       // Preload critical data first (user profile only)
       console.log('🔍 Preloading user profile...');
       await this.preloadUserProfile(userId);
@@ -48,6 +51,10 @@ class DataPreloader {
     } catch (error) {
       console.error('❌ Error during preloading:', error);
       return false;
+    } finally {
+      // Clear preloading flag
+      const { dataRepository } = await import('./DataRepository');
+      dataRepository.isPreloading = false;
     }
   }
 

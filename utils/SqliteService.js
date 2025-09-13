@@ -183,7 +183,10 @@ class SqliteService {
         }
       }
 
-      console.log(`🔍 Querying ${tableName}:`, { conditions, options });
+      // Reduced logging - skip verbose sync_queue queries
+      if (tableName !== 'sync_queue') {
+        console.log(`🔍 Querying ${tableName}:`, { conditions, options });
+      }
       
       const results = await this.db.getAll(sql, params);
       return results;

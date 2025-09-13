@@ -193,11 +193,17 @@ class DataRepository {
         synced: false
       };
 
-      console.log('📝 Adding inventory item to SQLite:', tempItem.name);
+      // Reduced logging during preloading
+      if (!this.isPreloading) {
+        console.log('📝 Adding inventory item to SQLite:', tempItem.name);
+      }
       
       const result = await this.sqliteService.insert('inventory', tempItem);
       
-      console.log('✅ Inventory item added to SQLite:', result.id);
+      // Reduced logging during preloading
+      if (!this.isPreloading) {
+        console.log('✅ Inventory item added to SQLite:', result.id);
+      }
       return result;
     } catch (error) {
       console.error('❌ Failed to add inventory item to SQLite:', error);
@@ -375,9 +381,12 @@ class DataRepository {
    */
   async processSale(saleData, saleItems, userRole = 'individual') {
     try {
-      // Prevent concurrent sale processing
-      if (this.processingSale) {
-        console.log('⚠️ Sale processing already in progress, queuing...');
+      // Prevent concurrent sale processing (but allow during preloading)
+      if (this.processingSale && !this.isPreloading) {
+        // Reduced logging - only log during actual user operations
+        if (!this.isPreloading) {
+          console.log('⚠️ Sale processing already in progress, queuing...');
+        }
         // Wait a bit and retry
         await new Promise(resolve => setTimeout(resolve, 100));
         if (this.processingSale) {
@@ -386,11 +395,15 @@ class DataRepository {
       }
       
       this.processingSale = true;
-      console.log('🔄 Processing sale in SQLite transaction...');
+      // Reduced logging - only log during actual user operations, not preloading
+      if (!this.isPreloading) {
+        console.log('🔄 Processing sale in SQLite transaction...');
+      }
       
       // Check if sale already exists to prevent duplicates
       if (saleData.id && await this.sqliteService.exists('sales', saleData.id)) {
-        console.log('⚠️ Sale already exists, skipping duplicate insertion:', saleData.id);
+        // Reduced logging - duplicates are normal during preloading
+        // console.log('⚠️ Sale already exists, skipping duplicate insertion:', saleData.id);
         this.processingSale = false;
         return {
           success: true,
@@ -411,7 +424,8 @@ class DataRepository {
 
         // Double-check that the sale doesn't exist (in case of race conditions)
         if (await this.sqliteService.exists('sales', sale.id)) {
-          console.log('⚠️ Sale already exists during transaction, skipping:', sale.id);
+          // Reduced logging - duplicates are normal during preloading
+          // console.log('⚠️ Sale already exists during transaction, skipping:', sale.id);
           return {
             sale: { id: sale.id },
             saleItems: []
@@ -443,7 +457,8 @@ class DataRepository {
           // Check if sale item already exists to prevent duplicates
           const saleItemId = saleItem.id;
           if (await this.sqliteService.exists('sale_items', saleItemId)) {
-            console.log('⚠️ Sale item already exists, skipping:', saleItemId);
+            // Reduced logging - duplicates are normal during preloading
+            // console.log('⚠️ Sale item already exists, skipping:', saleItemId);
             continue;
           }
           
@@ -554,15 +569,22 @@ class DataRepository {
 
       // Check if expense already exists to prevent duplicates
       if (expense.id && await this.sqliteService.exists('expenses', expense.id)) {
-        console.log('⚠️ Expense already exists, skipping duplicate insertion:', expense.id);
+        // Reduced logging - duplicates are normal during preloading
+        // console.log('⚠️ Expense already exists, skipping duplicate insertion:', expense.id);
         return { id: expense.id };
       }
 
-      console.log('📝 Adding expense to SQLite:', expense.description);
+      // Reduced logging during preloading
+      if (!this.isPreloading) {
+        console.log('📝 Adding expense to SQLite:', expense.description);
+      }
       
       const result = await this.sqliteService.insert('expenses', expense);
       
-      console.log('✅ Expense added to SQLite:', result.id);
+      // Reduced logging during preloading
+      if (!this.isPreloading) {
+        console.log('✅ Expense added to SQLite:', result.id);
+      }
       return result;
     } catch (error) {
       console.error('❌ Failed to add expense to SQLite:', error);
@@ -766,7 +788,10 @@ class DataRepository {
         { orderBy: 'created_at ASC', limit }
       );
 
-      console.log(`📤 Found ${records.length} unsynced records in ${tableName}`);
+      // Only log when there are actually unsynced records
+      if (records.length > 0) {
+        console.log(`📤 Found ${records.length} unsynced records in ${tableName}`);
+      }
       return records;
     } catch (error) {
       console.error(`❌ Failed to get unsynced records from ${tableName}:`, error);

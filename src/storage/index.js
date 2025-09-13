@@ -425,6 +425,11 @@ class CentralizedStorage {
     const sqliteStats = await dataRepository.getStats();
     const syncQueueCount = await sqliteService.count('sync_queue', { synced: false });
     const cacheCount = await sqliteService.count('cache_metadata');
+    
+    // Only log stats when there are pending sync operations
+    if (syncQueueCount > 0) {
+      console.log(`📊 Storage Stats: ${JSON.stringify(sqliteStats)} | Sync Queue: ${syncQueueCount} | Cache: ${cacheCount}`);
+    }
 
     return {
       ...sqliteStats,
