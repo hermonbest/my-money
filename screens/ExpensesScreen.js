@@ -176,7 +176,7 @@ export default function ExpensesScreen({ navigation }) {
       </Text>
       <TouchableOpacity
         style={styles.addFirstButton}
-        onPress={() => navigation && navigation.navigate ? navigation.navigate("AddExpense") : console.log('Navigation not available')}
+        onPress={() => navigation && navigation.navigate ? navigation.navigate("AddExpenseScreen") : console.log('Navigation not available')}
       >
         <MaterialIcons name="add" size={20} color="#ffffff" />
         <Text style={styles.addFirstButtonText}>{getTranslation('recordFirstExpenseButton', language)}</Text>
@@ -261,7 +261,7 @@ export default function ExpensesScreen({ navigation }) {
               Alert.alert(getTranslation('accessDenied', language), getTranslation('workersCannotAddExpenses', language));
               return;
             }
-            navigation && navigation.navigate ? navigation.navigate("AddExpense") : console.log('Navigation not available');
+            navigation && navigation.navigate ? navigation.navigate("AddExpenseScreen") : console.log('Navigation not available');
           }}
         >
           <MaterialIcons name="add" size={24} color="#ffffff" />

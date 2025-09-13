@@ -750,10 +750,24 @@ const loadAdditionalData = async (storeIdOrUserId, isIndividual = false, isAllSt
   };
 
   const formatCurrency = (amount) => {
+    const value = amount || 0;
+    
+    // For very large numbers, use abbreviated format
+    if (Math.abs(value) >= 1000000) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(value);
+    }
+    
+    // For smaller numbers, use standard format
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-    }).format(amount || 0);
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
   const renderStoreSelector = () => {
@@ -1253,7 +1267,7 @@ const styles = StyleSheet.create({
   card: {
     width: '48%',
     backgroundColor: '#ffffff',
-    padding: 24,
+    padding: 16,
     borderRadius: 16,
     marginBottom: 16,
     alignItems: 'center',
@@ -1265,20 +1279,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#f1f5f9',
     transition: 'all 0.2s ease',
+    minHeight: 120,
   },
   cardValue: {
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#0f172a',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 12,
+    marginBottom: 6,
+    textAlign: 'center',
+    numberOfLines: 1,
+    adjustsFontSizeToFit: true,
+    minimumFontScale: 0.7,
   },
   cardLabel: {
-    fontSize: 15,
+    fontSize: 12,
     color: '#64748b',
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    textAlign: 'center',
+    numberOfLines: 2,
+    lineHeight: 16,
   },
   section: {
     marginBottom: 32,

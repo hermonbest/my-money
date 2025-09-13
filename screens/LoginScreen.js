@@ -20,11 +20,9 @@ export default function LoginScreen({ navigation }) {
   const { language } = useLanguage(); // Use language context
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [invitationCode, setInvitationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
-  const [isWorkerSignup, setIsWorkerSignup] = useState(false);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -79,41 +77,41 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert(getTranslation('error', language), getTranslation('weakPassword', language));
-      return;
-    }
-
     setLoading(true);
     try {
-      // Check if this is a worker signup with invitation code
-      if (invitationCode.trim()) {
-        await signUpWorker(email.trim(), password, invitationCode.trim());
-      } else {
-        // Regular signup
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-        });
+      // Regular signup
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+      });
 
-        if (error) {
-          Alert.alert(getTranslation('error', language), error.message);
-        } else {
-          // Wait for authentication to complete before showing role selection
-          console.log(getTranslation('loading', language));
-          
-          // Wait a moment for the auth state to update
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          // Verify user is authenticated before showing role selection
-          const { data: { user }, error: authError } = await supabase.auth.getUser();
-          if (authError || !user) {
-            Alert.alert(getTranslation('error', language), getTranslation('tryAgain', language));
-            return;
-          }
-          
-          console.log('User authenticated, showing role selection for:', user.id);
+      if (error) {
+        Alert.alert(getTranslation('error', language), error.message);
+      } else {
+        // Check if email confirmation is required
+        if (data.user && !data.user.email_confirmed_at) {
+          Alert.alert(
+            getTranslation('success', language),
+            'Please check your email and click the confirmation link to complete signup.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  setEmail('');
+                  setPassword('');
+                }
+              }
+            ]
+          );
+          return;
+        }
+        
+        // User is immediately authenticated (no email confirmation required)
+        if (data.user && data.user.email_confirmed_at) {
+          console.log('User authenticated, showing role selection for:', data.user.id);
           setShowRoleSelection(true);
+        } else {
+          Alert.alert(getTranslation('error', language), getTranslation('tryAgain', language));
         }
       }
     } catch (error) {
@@ -121,55 +119,6 @@ export default function LoginScreen({ navigation }) {
       console.error('Sign up error:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const signUpWorker = async (email, password, invitationCode) => {
-    try {
-      // First, sign up the user with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
-
-      // If invitation code provided, complete worker registration
-      if (invitationCode && authData.user) {
-        const { data: registrationData, error: registrationError } = await supabase.rpc(
-          'complete_worker_registration',
-          {
-            p_invitation_code: invitationCode,
-            p_user_id: authData.user.id
-          }
-        );
-
-        if (registrationError) throw registrationError;
-
-        if (registrationData.success) {
-          Alert.alert(
-            getTranslation('success', language), 
-            `${getTranslation('welcomeBack', language)} ${registrationData.store_name}! ${getTranslation('workerInvitations', language)}.`,
-            [
-              {
-                text: getTranslation('continue', language),
-                onPress: () => {
-                  // The app will automatically detect the worker role and navigate appropriately
-                }
-              }
-            ]
-          );
-          return;
-        } else {
-          throw new Error(registrationData.error);
-        }
-      }
-
-      // Fallback to regular signup if no invitation code
-      setShowRoleSelection(true);
-    } catch (error) {
-      console.error('Worker signup error:', error);
-      throw error;
     }
   };
 
@@ -208,14 +157,46 @@ export default function LoginScreen({ navigation }) {
 
       console.log('Creating profile for user:', user.id, 'with role:', role);
 
-      // Create profile with selected role
+      // Check if user has a worker assignment first
+      let finalRole = role;
+      let storeId = null;
+      let businessName = role === 'individual' ? getTranslation('myBusiness', language) : getTranslation('myStore', language);
+
+      // Check for worker assignment
+      const { data: assignment, error: assignmentError } = await supabase
+        .from('worker_assignments')
+        .select('store_id, stores(name)')
+        .eq('worker_email', user.email.toLowerCase().trim())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (assignmentError && assignmentError.code !== 'PGRST116') {
+        console.warn('Worker assignment check failed:', assignmentError);
+      }
+
+      if (assignment) {
+        finalRole = 'worker';
+        storeId = assignment.store_id;
+        businessName = assignment.stores.name;
+      }
+
+      // Create profile with determined role
+      console.log('🔍 About to create profile with data:', {
+        user_id: user.id,
+        email: user.email,
+        role: finalRole,
+        store_id: storeId,
+        business_name: businessName
+      });
+
       const { data: profileData, error } = await supabase
         .from('profiles')
         .insert({
           user_id: user.id,
           email: user.email,
-          role: role,
-          business_name: role === 'individual' ? getTranslation('myBusiness', language) : getTranslation('myStore', language),
+          role: finalRole,
+          store_id: storeId,
+          business_name: businessName,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -224,6 +205,14 @@ export default function LoginScreen({ navigation }) {
 
       if (error) {
         console.error('Profile creation error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('Profile data attempted:', {
+          user_id: user.id,
+          email: user.email,
+          role: finalRole,
+          store_id: storeId,
+          business_name: businessName
+        });
         
         // If we get a unique constraint violation, try to get the existing profile
         if (error.code === '23505') {
@@ -434,20 +423,6 @@ export default function LoginScreen({ navigation }) {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!loading}
-            />
-          </View>
-
-          <View style={[styles.inputContainer, styles.invitationInput]}>
-            <MaterialIcons name="vpn-key" size={20} color="#6b7280" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={getTranslation('invitationCode', language)}
-              placeholderTextColor="#9ca3af"
-              value={invitationCode}
-              onChangeText={setInvitationCode}
               autoCapitalize="none"
               autoCorrect={false}
               editable={!loading}

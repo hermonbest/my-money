@@ -51,11 +51,14 @@ export const StoreProvider = ({ children }) => {
       setIsAuthenticated(true);
 
       // Get user profile
+      console.log('🔍 StoreContext: Fetching profile for user:', user.id);
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, store_id')
         .eq('user_id', user.id)
         .maybeSingle();
+      
+      console.log('🔍 StoreContext: Profile query result:', { profile, profileError });
 
       if (profileError) {
         console.error('❌ StoreContext: Error fetching profile:', profileError);
@@ -215,12 +218,12 @@ export const StoreProvider = ({ children }) => {
             setStores([assignedStore]);
             setSelectedStore(assignedStore);
           } else {
-            console.warn('Worker assigned store not found');
+            console.warn('⚠️ No store assigned to worker yet');
             setStores([]);
             setSelectedStore(null);
           }
         } else {
-          console.warn('Worker has no assigned store in profile');
+          console.warn('⚠️ No store assigned to worker yet');
           setStores([]);
           setSelectedStore(null);
         }
@@ -257,8 +260,11 @@ export const StoreProvider = ({ children }) => {
       console.log('StoreContext - Auth state change:', event, session?.user?.id);
       
       if (event === 'SIGNED_IN' && session?.user) {
-        console.log('StoreContext - User signed in, reloading profile...');
-        await loadUserProfile();
+        console.log('StoreContext - User signed in, waiting for profile...');
+        // Add delay to let App.js handle profile creation first
+        setTimeout(async () => {
+          await loadUserProfile();
+        }, 1000);
       } else if (event === 'SIGNED_OUT') {
         console.log('StoreContext - User signed out, clearing state...');
         setUserRole(null);

@@ -187,7 +187,7 @@ export const getUserProfile = async (userId) => {
       console.log('🔍 Fetching profile from Supabase...');
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('role, store_id')
+        .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -205,10 +205,8 @@ export const getUserProfile = async (userId) => {
         console.log('🔍 Using cached profile as fallback');
         return JSON.parse(cachedProfile);
       }
-      
-      // If no profile found, return null
-      console.log('🔍 No profile found online and no cached data');
-      return null;
+      // Return null but ensure we don't crash on role access
+      return { role: null };
     } else {
       // Offline: use cached profile if available
       if (cachedProfile) {
@@ -233,7 +231,7 @@ export const getUserProfile = async (userId) => {
       console.error('❌ Error loading cached profile:', cacheError);
     }
     
-    return null;
+    return { role: null };
   }
 };
 

@@ -30,7 +30,7 @@ import AddItemScreen from "./screens/AddItemScreen";
 import AddSaleScreen from "./screens/AddSaleScreen";
 import AddExpenseScreen from "./screens/AddExpenseScreen";
 import StoreManagementScreen from "./screens/StoreManagementScreen";
-import WorkerInviteScreen from "./screens/WorkerInviteScreen";
+// import WorkerInviteScreen from "./screens/WorkerInviteScreen"; // Removed - invitation feature disabled
 import WorkerPOSScreen from "./screens/WorkerPOSScreen";
 import POSCheckoutScreen from "./screens/POSCheckoutScreen";
 import CartScreen from "./screens/CartScreen";
@@ -121,7 +121,7 @@ export default function App() {
               .from('profiles')
               .select('*')
               .eq('user_id', user.id)
-              .single();
+              .maybeSingle();
               
             if (!profileError && dbProfile) {
               console.log('🔍 Found profile in database:', dbProfile);
@@ -245,7 +245,7 @@ export default function App() {
             .from('profiles')
             .select('*')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
           
           if (error) throw error;
           
@@ -293,17 +293,69 @@ export default function App() {
           setIsAuthenticated(true);
           setNeedsProfileSetup(false);
           
-          // Preload all data for instant navigation
-          try {
-            await preloadAllData(session.user.id, profile.role, profile.store_id);
-          } catch (preloadError) {
+          // Start data preloading in background (non-blocking)
+          preloadAllData(session.user.id, profile.role, profile.store_id).catch(preloadError => {
             console.warn('⚠️ Data preloading failed:', preloadError.message);
-          }
+          });
         } else {
-          // User exists but no profile - they need to complete profile setup
-          setIsAuthenticated(false);
-          setNeedsProfileSetup(true);
-          setUserRole(null);
+          // User exists but no profile - check if they have a worker assignment
+          console.log('🔍 User has no profile, checking for worker assignment...');
+          
+          try {
+            const { data: assignment, error: assignmentError } = await supabase
+              .from('worker_assignments')
+              .select('store_id, stores(name)')
+              .eq('worker_email', session.user.email.toLowerCase().trim())
+              .eq('is_active', true)
+              .maybeSingle();
+
+            if (assignment && !assignmentError) {
+              // Auto-create worker profile
+              console.log('🔍 Found worker assignment, creating worker profile...');
+              
+              const { data: newProfile, error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                  user_id: session.user.id,
+                  email: session.user.email,
+                  role: 'worker',
+                  store_id: assignment.store_id,
+                  business_name: assignment.stores.name,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+              if (!profileError && newProfile) {
+                console.log('✅ Worker profile created automatically:', newProfile);
+                setUserRole('worker');
+                setIsAuthenticated(true);
+                setNeedsProfileSetup(false);
+                
+                // Cache the new profile and ensure it's fresh
+                await AsyncStorage.setItem(`user_profile_${session.user.id}`, JSON.stringify(newProfile));
+                
+                // Start data preloading in background (non-blocking)
+                preloadAllData(session.user.id, 'worker', assignment.store_id).catch(preloadError => {
+                  console.warn('⚠️ Data preloading failed:', preloadError.message);
+                });
+                return;
+              } else {
+                console.error('❌ Failed to create worker profile:', profileError);
+              }
+            }
+            
+            // No worker assignment found or profile creation failed - show profile setup
+            setIsAuthenticated(false);
+            setNeedsProfileSetup(true);
+            setUserRole(null);
+          } catch (error) {
+            console.error('❌ Error checking worker assignment:', error);
+            setIsAuthenticated(false);
+            setNeedsProfileSetup(true);
+            setUserRole(null);
+          }
         }
       } else {
         // Handle sign out
@@ -433,21 +485,20 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainApp" component={TabsComponent} />
         <Stack.Screen name="POSCheckoutScreen" component={POSCheckoutScreen} options={{ title: "Checkout", headerShown: true }} />
-        <Stack.Screen name="AddItem" component={AddItemScreen} options={{ title: "Add Item", headerShown: true }} />
-        <Stack.Screen name="AddSale" component={AddSaleScreen} options={{ title: "Record Sale", headerShown: true }} />
-        <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: "Add Expense", headerShown: true }} />
         <Stack.Screen name="CartScreen" component={CartScreen} options={{ title: "Cart", headerShown: true }} />
+        <Stack.Screen name="AddItemScreen" component={AddItemScreen} options={{ title: "Add Item", headerShown: true }} />
+        <Stack.Screen name="AddSaleScreen" component={AddSaleScreen} options={{ title: "Add Sale", headerShown: true }} />
+        <Stack.Screen name="AddExpenseScreen" component={AddExpenseScreen} options={{ title: "Add Expense", headerShown: true }} />
         <Stack.Screen name="FinalSoldScreen" component={FinalSoldScreen} options={{ title: "Sale Complete", headerShown: true }} />
         {userRole === 'owner' && (
           <>
-            <Stack.Screen name="WorkerInvite" component={WorkerInviteScreen} options={{ title: "Invite Worker", headerShown: true }} />
+            {/* WorkerInvite screen removed - invitation feature disabled */}
           </>
         )}
       </Stack.Navigator>
     );
   };
 
-  // Check if Supabase is properly configured
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 

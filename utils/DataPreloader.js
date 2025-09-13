@@ -20,31 +20,28 @@ class DataPreloader {
     console.log('🔄 Starting data preloading for user:', { userId, userRole, storeId });
 
     try {
-      // Preload user profile
+      // Preload critical data first (user profile only)
       console.log('🔍 Preloading user profile...');
       await this.preloadUserProfile(userId);
 
+      // Preload other data in parallel (non-blocking)
+      const preloadTasks = [];
+
       // Preload stores (for owners and workers)
       if (userRole !== 'individual') {
-        console.log('🔍 Preloading stores...');
-        await this.preloadStores(userId, userRole);
+        preloadTasks.push(this.preloadStores(userId, userRole));
       }
 
-      // Preload inventory
-      console.log('🔍 Preloading inventory...');
-      await this.preloadInventory(storeId, userId, userRole);
+      // Preload data in parallel for better performance
+      preloadTasks.push(
+        this.preloadInventory(storeId, userId, userRole),
+        this.preloadSales(storeId, userId, userRole),
+        this.preloadExpenses(storeId, userId, userRole),
+        this.preloadDashboardData(userId, userRole, storeId)
+      );
 
-      // Preload sales
-      console.log('🔍 Preloading sales...');
-      await this.preloadSales(storeId, userId, userRole);
-
-      // Preload expenses
-      console.log('🔍 Preloading expenses...');
-      await this.preloadExpenses(storeId, userId, userRole);
-
-      // Preload dashboard data
-      console.log('🔍 Preloading dashboard data...');
-      await this.preloadDashboardData(userId, userRole, storeId);
+      // Execute all preload tasks in parallel
+      await Promise.allSettled(preloadTasks);
 
       console.log('✅ All data preloaded successfully');
       return true;

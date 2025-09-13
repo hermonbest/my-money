@@ -247,6 +247,14 @@ export default function WorkerInviteScreen({ navigation, route }) {
           <Text style={[styles.invitationStatus, { color: status.color }]}>
             {status.text}
           </Text>
+          {item.invitation_code && (
+            <View style={styles.invitationCodeContainer}>
+              <Text style={styles.invitationCodeLabel}>
+                {getTranslation('invitationCode', language)}:
+              </Text>
+              <Text style={styles.invitationCode}>{item.invitation_code}</Text>
+            </View>
+          )}
         </View>
         
         <View style={styles.invitationActions}>
@@ -429,4 +437,241 @@ export default function WorkerInviteScreen({ navigation, route }) {
   );
 }
 
-// ... existing styles ...
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  header: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  listContainer: {
+    padding: 16,
+  },
+  invitationItem: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  invitationInfo: {
+    flex: 1,
+  },
+  invitationEmail: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  invitationDate: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  invitationStatus: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  invitationActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyDescription: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  inviteButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: '#2563eb',
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  inviteButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#111827',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#1e40af',
+    marginLeft: 8,
+    flex: 1,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    padding: 20,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginRight: 8,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  sendButton: {
+    flex: 1,
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginLeft: 8,
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  buttonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  invitationCodeContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  invitationCodeLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+    marginRight: 8,
+  },
+  invitationCode: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    fontFamily: 'monospace',
+  },
+});

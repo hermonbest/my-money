@@ -126,7 +126,7 @@ export default function InventoryScreen({ navigation }) {
             <>
               <TouchableOpacity
                 style={styles.actionButton}
-                onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItem", { itemToEdit: item }) : console.log('Navigation not available')}
+                onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItemScreen", { itemToEdit: item }) : console.log('Navigation not available')}
               >
                 <MaterialIcons name="edit" size={20} color="#2563eb" />
               </TouchableOpacity>
@@ -206,7 +206,7 @@ export default function InventoryScreen({ navigation }) {
       {userRole !== 'worker' && (
         <TouchableOpacity
           style={styles.addFirstButton}
-          onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItem") : console.log('Navigation not available')}
+          onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItemScreen") : console.log('Navigation not available')}
         >
           <MaterialIcons name="add" size={20} color="#ffffff" />
           <Text style={styles.addFirstButtonText}>{getTranslation('addFirstItem', language)}</Text>
@@ -271,7 +271,7 @@ export default function InventoryScreen({ navigation }) {
         {userRole !== 'worker' && (
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItem") : console.log('Navigation not available')}
+            onPress={() => navigation && navigation.navigate ? navigation.navigate("AddItemScreen") : console.log('Navigation not available')}
           >
             <MaterialIcons name="add" size={24} color="#ffffff" />
           </TouchableOpacity>
