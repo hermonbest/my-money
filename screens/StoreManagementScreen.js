@@ -287,7 +287,7 @@ const handleDirectAssignWorker = async (store) => {
       <View style={styles.storeActions}>
       <TouchableOpacity
   style={styles.assignButton}
-  onPress={() => handleDirectAssignWorker(store)}
+  onPress={() => handleDirectAssignWorker(item)}
 >
   <MaterialIcons name="person-add" size={20} color="#ffffff" />
   <Text style={styles.assignButtonText}>Assign Worker</Text>
@@ -538,6 +538,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
     paddingTop: 12,
+  },
+  assignButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
   },
   actionButton: {
     marginLeft: 16,

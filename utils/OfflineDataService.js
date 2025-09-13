@@ -6,7 +6,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Helper function for generating consistent cache keys
 const generateCacheKey = (dataType, storeId, userId, userRole) => {
   const effectiveUserRole = userRole || 'worker';
-  return `${dataType}_${storeId || userId}_${effectiveUserRole}`;
+  
+  // CRITICAL FIX: For store-based data (owner/worker), use 'shared' instead of role
+  // This allows owner and workers to access the same inventory/sales for a store
+  if (storeId && (userRole === 'owner' || userRole === 'worker')) {
+    const sharedKey = `${dataType}_${storeId}_shared`;
+    console.log('🔧 WORKER FIX: Using shared cache key:', sharedKey, 'for role:', userRole);
+    return sharedKey;
+  }
+  
+  // For individual users, keep role-based isolation
+  const individualKey = `${dataType}_${storeId || userId}_${effectiveUserRole}`;
+  console.log('🔧 WORKER FIX: Using individual cache key:', individualKey, 'for role:', userRole);
+  return individualKey;
 };
 
 // Helper function to get all possible cache keys for data retrieval
@@ -15,13 +27,22 @@ const getAllPossibleCacheKeys = (dataType, storeId, userId, userRole) => {
   const keys = [];
   
   // Add store-based key if storeId exists
-  if (storeId) {
+  if (storeId && (userRole === 'owner' || userRole === 'worker')) {
+    // NEW: Use shared key for store-based data (primary key)
+    keys.push(`${dataType}_${storeId}_shared`);
+    
+    // BACKWARD COMPATIBILITY: Also try old role-based keys
+    keys.push(`${dataType}_${storeId}_owner`);
+    keys.push(`${dataType}_${storeId}_worker`);
+    console.log('🔧 WORKER FIX: Trying cache keys for store data:', keys);
+  } else if (storeId) {
     keys.push(`${dataType}_${storeId}_${effectiveUserRole}`);
   }
   
   // Add user-based key as fallback
   keys.push(`${dataType}_${userId}_${effectiveUserRole}`);
   
+  console.log('🔧 WORKER FIX: All possible cache keys:', keys);
   // Remove duplicates
   return [...new Set(keys)];
 };
@@ -30,18 +51,23 @@ const getAllPossibleCacheKeys = (dataType, storeId, userId, userRole) => {
 const getCachedDataWithFallback = async (dataType, storeId, userId, userRole) => {
   const possibleKeys = getAllPossibleCacheKeys(dataType, storeId, userId, userRole);
   
+  console.log('🔧 WORKER FIX: getCachedDataWithFallback called with keys:', possibleKeys);
+  
   for (const key of possibleKeys) {
     try {
       const data = await offlineManager.getLocalData(key);
+      console.log(`🔧 WORKER FIX: Checking key "${key}" - found ${data?.length || 0} items`);
       if (data && data.length > 0) {
+        console.log(`🔧 WORKER FIX: SUCCESS! Using data from key: ${key}`);
         return data;
       }
     } catch (error) {
-      // Continue to next key if this one fails
+      console.log(`🔧 WORKER FIX: Error with key "${key}":`, error.message);
       continue;
     }
   }
   
+  console.log('🔧 WORKER FIX: No data found in any cache key');
   return [];
 };
 
@@ -55,15 +81,26 @@ class OfflineDataService {
       if (offlineManager.isConnected()) {
         let query = supabase.from('inventory').select('*');
         
+        console.log('🔧 WORKER FIX: Building query for', {dataType: 'inventory', userRole, storeId, userId});
+        
         if (userRole === 'individual') {
           query = query.eq('user_id', userId);
+          console.log('🔧 WORKER FIX: Individual query - filtering by user_id:', userId);
         } else if (userRole === 'owner' && storeId) {
           query = query.eq('store_id', storeId);
+          console.log('🔧 WORKER FIX: Owner query - filtering by store_id:', storeId);
         } else if (userRole === 'worker' && storeId) {
           query = query.eq('store_id', storeId);
+          console.log('🔧 WORKER FIX: Worker query - filtering by store_id:', storeId);
         }
         
         const { data, error } = await query.order('name');
+        
+        console.log('🔧 WORKER FIX: Database query result:', {
+          error: error?.message,
+          dataCount: data?.length || 0,
+          query: query.toString()
+        });
         
         if (error) {
           console.warn('⚠️ Online inventory fetch failed, trying cached data:', error.message);
