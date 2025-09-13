@@ -1,36 +1,37 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   StyleSheet,
+  FlatList,
   Alert,
   ActivityIndicator,
-  RefreshControl,
-  Modal,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
+  Modal,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../utils/supabase';
-import { useLanguage } from '../contexts/LanguageContext';
 import { getCurrentUser } from '../utils/authUtils';
-import HeaderWithLogout from '../components/HeaderWithLogout';
+import { offlineManager } from '../utils/OfflineManager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '../contexts/LanguageContext'; // Import useLanguage hook
+import { useStore } from '../contexts/StoreContext'; // Import useStore hook
+import { getTranslation } from '../utils/translations'; // Import getTranslation function
 
 export default function StoreManagementScreen({ navigation }) {
+  const { language } = useLanguage();
+  const { refreshStores } = useStore(); // Use language context
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [workerEmail, setWorkerEmail] = useState('');
-  const [selectedStore, setSelectedStore] = useState(null);
-  const [assignedWorkers, setAssignedWorkers] = useState({});
-  const [createStoreModal, setCreateStoreModal] = useState(false);
-  const [storeName, setStoreName] = useState('');
-  const [storeAddress, setStoreAddress] = useState('');
-  const { language } = useLanguage();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newStore, setNewStore] = useState({
+    name: '',
+    description: '',
+    address: '',
+    phone: '',
+    email: '',
+  });
 
   useEffect(() => {
     loadStores();
@@ -39,411 +40,421 @@ export default function StoreManagementScreen({ navigation }) {
   const loadStores = async () => {
     try {
       setLoading(true);
+      
+      // Get user's owned stores
       const { user } = await getCurrentUser();
-      if (!user) {
-        console.warn('No authenticated user found');
-        return;
+      if (!user) return;
+
+      // Check if online
+      if (offlineManager.isConnected()) {
+        console.log('🌐 Online - loading stores from database');
+        const { data: stores, error } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('owner_id', user.id)
+          .order('name');
+
+        if (error) {
+          console.error('Error loading stores:', error);
+          Alert.alert(getTranslation('error', language), getTranslation('failedToLoadStores', language));
+          return;
+        }
+
+        setStores(stores || []);
+        
+        // Cache stores for offline use
+        await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify(stores || []));
+        console.log('✅ Cached stores for offline use');
+      } else {
+        console.log('📱 Offline - loading stores from cache');
+        // Load from cache
+        const cachedStores = await AsyncStorage.getItem(`stores_${user.id}`);
+        if (cachedStores) {
+          setStores(JSON.parse(cachedStores));
+          console.log('✅ Loaded stores from cache');
+        } else {
+          setStores([]);
+          console.log('⚠️ No cached stores found');
+        }
       }
 
-      console.log('🌐 Online - loading stores from database');
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('owner_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error loading stores:', error);
-        Alert.alert('Error', 'Failed to load stores');
-        return;
-      }
-
-      setStores(data || []);
-      await loadAssignedWorkers(data || []);
-      console.log('✅ Cached stores for offline use');
     } catch (error) {
-      console.error('Error in loadStores:', error);
-      Alert.alert('Error', 'Failed to load stores');
+      console.error('Error loading stores:', error);
+      Alert.alert(getTranslation('error', language), getTranslation('failedToLoadStores', language));
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const loadAssignedWorkers = async (storeList) => {
-    try {
-      const storeIds = storeList.map(store => store.id);
-      if (storeIds.length === 0) return;
-      
-      const { data, error } = await supabase
-        .from('worker_assignments')
-        .select('store_id, worker_email')
-        .in('store_id', storeIds)
-        .eq('is_active', true);
+  const handleAddStore = async () => {
+    if (!newStore.name.trim()) {
+      Alert.alert(getTranslation('error', language), getTranslation('storeNameRequired', language));
+      return;
+    }
 
-      if (error) {
-        console.error('Error loading assigned workers:', error);
-        return;
+    try {
+      const { user } = await getCurrentUser();
+      if (!user) return;
+
+      // Check if online
+      if (offlineManager.isConnected()) {
+        console.log('🌐 Online - creating store in database');
+        const { data, error } = await supabase
+          .from('stores')
+          .insert({
+            owner_id: user.id,
+            name: newStore.name.trim(),
+            description: newStore.description.trim() || null,
+            address: newStore.address.trim() || null,
+            phone: newStore.phone.trim() || null,
+            email: newStore.email.trim() || null,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error creating store:', error);
+          Alert.alert(getTranslation('error', language), getTranslation('failedToCreateStore', language));
+          return;
+        }
+
+        const newStores = [...stores, data];
+        setStores(newStores);
+        
+        // Update cache
+        await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify(newStores));
+        console.log('✅ Updated stores cache');
+        
+        // CRITICAL FIX: Refresh the store context to update selectedStore
+        if (refreshStores) {
+          console.log('🔄 Refreshing store context after creation');
+          await refreshStores();
+        }
+        
+        Alert.alert(getTranslation('success', language), getTranslation('storeCreatedSuccessfully', language));
+      } else {
+        console.log('📱 Offline - creating temporary store');
+        // Create temporary store for offline use
+        const tempStore = {
+          id: `temp_store_${Date.now()}`,
+          owner_id: user.id,
+          name: newStore.name.trim(),
+          description: newStore.description.trim() || null,
+          address: newStore.address.trim() || null,
+          phone: newStore.phone.trim() || null,
+          email: newStore.email.trim() || null,
+          created_at: new Date().toISOString(),
+          is_offline: true
+        };
+
+        setStores([...stores, tempStore]);
+        
+        // Update cache
+        await AsyncStorage.setItem(`stores_${user.id}`, JSON.stringify([...stores, tempStore]));
+        console.log('✅ Created temporary store offline');
+        
+        Alert.alert(getTranslation('success', language), getTranslation('storeCreatedOffline', language));
       }
 
-      const workersMap = {};
-      data?.forEach(assignment => {
-        workersMap[assignment.store_id] = assignment.worker_email;
+      setShowAddModal(false);
+      setNewStore({
+        name: '',
+        description: '',
+        address: '',
+        phone: '',
+        email: '',
       });
-      setAssignedWorkers(workersMap);
+
     } catch (error) {
-      console.error('Error in loadAssignedWorkers:', error);
+      console.error('Error creating store:', error);
+      Alert.alert(getTranslation('error', language), getTranslation('failedToCreateStore', language));
     }
   };
 
-  const handleAssignWorker = (store) => {
-    setSelectedStore(store);
-    setWorkerEmail('');
-    setModalVisible(true);
+  const handleEditStore = (store) => {
+    // TODO: Implement edit store functionality
+    Alert.alert(getTranslation('editStore', language), getTranslation('editFunctionalityComingSoon', language));
   };
 
-  const handleRemoveWorker = (store) => {
-    const workerEmail = assignedWorkers[store.id];
-    Alert.alert(
-      'Remove Worker',
-      `Remove ${workerEmail} from ${store.name}?`,
+  // Invitation flow disabled (direct assignment only)
+  const handleInviteWorker = (store) => {
+    Alert.alert(getTranslation('info', language), getTranslation('invitationsDisabled', language));
+  };
+
+  const handleViewWorkers = (store) => {
+    // Navigate to worker invite screen
+    if (navigation && navigation.navigate) {
+      try {
+        navigation.navigate('WorkerInvite', { store });
+      } catch (error) {
+        console.error('Navigation error:', error);
+        Alert.alert(getTranslation('error', language), getTranslation('unableToNavigateWorkerInvite', language));
+      }
+    } else {
+      console.warn('Navigation not available - this is normal during app startup');
+      Alert.alert(getTranslation('info', language), getTranslation('pleaseWaitForAppLoad', language));
+    }
+  };
+
+// Replace the handleDirectAssignWorker function in StoreManagementScreen.js
+const handleDirectAssignWorker = async (store) => {
+  try {
+    // Get current user profile
+    const { user } = await getCurrentUser();
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    // Get user's profile to get the profile ID
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      Alert.alert('Error', 'Could not find user profile');
+      return;
+    }
+
+    Alert.prompt(
+      'Assign Worker',
+      `Enter worker's email address to assign them to ${store.name}:`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: 'Remove', 
-          style: 'destructive',
-          onPress: () => removeWorkerAssignment(store.id)
+          text: 'Assign', 
+          onPress: async (email) => {
+            if (!email || !email.includes('@')) {
+              Alert.alert('Error', 'Please enter a valid email address');
+              return;
+            }
+
+            try {
+              // Add worker assignment
+              const { data, error } = await supabase
+                .from('worker_assignments')
+                .insert({
+                  store_id: store.id,
+                  worker_email: email.toLowerCase().trim(),
+                  assigned_by: profile.id
+                });
+
+              if (error) throw error;
+
+              Alert.alert(
+                'Success',
+                `Worker ${email} has been assigned to ${store.name}. They can now sign up and will automatically be assigned to this store.`
+              );
+
+              // Refresh the store data
+              loadStores();
+            } catch (error) {
+              console.error('Error assigning worker:', error);
+              Alert.alert('Error', 'Failed to assign worker. Please try again.');
+            }
+          }
         }
-      ]
+      ],
+      'plain-text'
     );
-  };
-
-  const assignWorker = async () => {
-    if (!workerEmail || !workerEmail.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
-
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Error', 'User not authenticated');
-        return;
-      }
-
-      // Check if worker is already assigned to this store
-      if (assignedWorkers[selectedStore.id]) {
-        Alert.alert('Error', 'This store already has an assigned worker. Remove the current worker first.');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('worker_assignments')
-        .insert({
-          store_id: selectedStore.id,
-          worker_email: workerEmail.toLowerCase().trim(),
-          assigned_by: user.id
-        });
-
-      if (error) throw error;
-
-      Alert.alert(
-        'Success',
-        `${workerEmail} has been assigned to ${selectedStore.name}`
-      );
-
-      setModalVisible(false);
-      setWorkerEmail('');
-      setSelectedStore(null);
-      loadStores();
-    } catch (error) {
-      console.error('Error assigning worker:', error);
-      Alert.alert('Error', `Failed to assign worker: ${error.message}`);
-    }
-  };
-
-  const removeWorkerAssignment = async (storeId) => {
-    try {
-      const { error } = await supabase
-        .from('worker_assignments')
-        .update({ is_active: false })
-        .eq('store_id', storeId)
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      Alert.alert('Success', 'Worker removed successfully');
-      loadStores();
-    } catch (error) {
-      console.error('Error removing worker:', error);
-      Alert.alert('Error', 'Failed to remove worker');
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadStores();
-  };
-
-  const createStore = async () => {
-    if (!storeName.trim()) {
-      Alert.alert('Error', 'Please enter a store name');
-      return;
-    }
-
-    try {
-      const { user } = await getCurrentUser();
-      if (!user) {
-        Alert.alert('Error', 'User not authenticated');
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('stores')
-        .insert({
-          name: storeName.trim(),
-          address: storeAddress.trim() || null,
-          owner_id: user.id,
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      Alert.alert('Success', `Store "${storeName}" created successfully!`);
-      setCreateStoreModal(false);
-      setStoreName('');
-      setStoreAddress('');
-      loadStores();
-    } catch (error) {
-      console.error('Error creating store:', error);
-      Alert.alert('Error', `Failed to create store: ${error.message}`);
-    }
-  };
-
-  const renderStoreItem = ({ item }) => {
-    const assignedWorker = assignedWorkers[item.id];
-    
-    return (
-      <View style={styles.storeCard}>
-        <View style={styles.storeHeader}>
-          <View style={styles.storeInfo}>
-            <MaterialIcons name="store" size={28} color="#1f2937" />
-            <View style={styles.storeDetails}>
-              <Text style={styles.storeName}>{item.name}</Text>
-              <Text style={styles.storeAddress}>
-                {item.address || 'No address'}
-              </Text>
-            </View>
-          </View>
-        </View>
-        
-        <View style={styles.workerSection}>
-          <Text style={styles.workerLabel}>Assigned Worker:</Text>
-          {assignedWorker ? (
-            <View style={styles.workerInfo}>
-              <View style={styles.workerDetails}>
-                <MaterialIcons name="person" size={20} color="#059669" />
-                <Text style={styles.workerEmail}>{assignedWorker}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => handleRemoveWorker(item)}
-              >
-                <MaterialIcons name="remove-circle" size={20} color="#dc2626" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.assignButton}
-              onPress={() => handleAssignWorker(item)}
-            >
-              <MaterialIcons name="person-add" size={20} color="#ffffff" />
-              <Text style={styles.assignButtonText}>Assign Worker</Text>
-            </TouchableOpacity>
-          )}
+  } catch (error) {
+    console.error('Error in handleDirectAssignWorker:', error);
+    Alert.alert('Error', 'Failed to assign worker. Please try again.');
+  }
+};
+  const renderStoreItem = ({ item }) => (
+    <View style={styles.storeItem}>
+      <View style={styles.storeInfo}>
+        <MaterialIcons 
+          name="store" 
+          size={24} 
+          color="#2563eb" 
+          style={styles.storeIcon}
+        />
+        <View style={styles.storeDetails}>
+          <Text style={styles.storeName}>{item.name}</Text>
+          <Text style={styles.storeDescription}>
+            {item.description || getTranslation('noDescription', language)}
+          </Text>
+          <Text style={styles.storeAddress}>
+            {item.address || getTranslation('noAddress', language)}
+          </Text>
         </View>
       </View>
-    );
-  };
+      
+      <View style={styles.storeActions}>
+      <TouchableOpacity
+  style={styles.assignButton}
+  onPress={() => handleDirectAssignWorker(store)}
+>
+  <MaterialIcons name="person-add" size={20} color="#ffffff" />
+  <Text style={styles.assignButtonText}>Assign Worker</Text>
+</TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleViewWorkers(item)}
+        >
+          <MaterialIcons name="people" size={20} color="#2563eb" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleEditStore(item)}
+        >
+          <MaterialIcons name="edit" size={20} color="#2563eb" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1f2937" />
-        <Text style={styles.loadingText}>Loading stores...</Text>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.loadingText}>{getTranslation('loading', language)} {getTranslation('stores', language).toLowerCase()}...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <HeaderWithLogout title="Store Management" />
-      
+      <View style={styles.header}>
+        <Text style={styles.title}>{getTranslation('storeManagement', language)}</Text>
+        <Text style={styles.subtitle}>
+          {getTranslation('manageStoresAndWorkers', language)}
+        </Text>
+      </View>
+
       <FlatList
         data={stores}
-        renderItem={renderStoreItem}
         keyExtractor={(item) => item.id}
+        renderItem={renderStoreItem}
         contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#1f2937']}
-          />
-        }
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="store" size={64} color="#9ca3af" />
-            <Text style={styles.emptyText}>No stores found</Text>
-            <Text style={styles.emptySubtext}>Create your first store to get started</Text>
-            <TouchableOpacity
-              style={styles.createStoreButton}
-              onPress={() => setCreateStoreModal(true)}
-            >
-              <MaterialIcons name="add" size={20} color="#ffffff" />
-              <Text style={styles.createStoreButtonText}>Create Store</Text>
-            </TouchableOpacity>
+            <MaterialIcons name="store" size={64} color="#d1d5db" />
+            <Text style={styles.emptyTitle}>{getTranslation('noStoresYet', language)}</Text>
+            <Text style={styles.emptyDescription}>
+              {getTranslation('createFirstStore', language)}
+            </Text>
           </View>
         }
       />
-      
-      {/* Floating Action Button for creating stores */}
+
       <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setCreateStoreModal(true)}
+        style={styles.addButton}
+        onPress={() => setShowAddModal(true)}
       >
-        <MaterialIcons name="add" size={28} color="#ffffff" />
+        <MaterialIcons name="add" size={24} color="#ffffff" />
+        <Text style={styles.addButtonText}>{getTranslation('addStore', language)}</Text>
       </TouchableOpacity>
-      
-      {/* Create Store Modal */}
+
+      {/* Add Store Modal */}
       <Modal
+        visible={showAddModal}
         animationType="slide"
-        transparent={true}
-        visible={createStoreModal}
-        onRequestClose={() => setCreateStoreModal(false)}
+        presentationStyle="pageSheet"
       >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{getTranslation('addNewStore', language)}</Text>
+            <TouchableOpacity
+              onPress={() => setShowAddModal(false)}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="close" size={24} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create New Store</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setCreateStoreModal(false)}
-              >
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Store Name *</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{getTranslation('storeName', language)} *</Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="Enter store name"
+                style={styles.input}
+                value={newStore.name}
+                onChangeText={(text) => setNewStore({...newStore, name: text})}
+                placeholder={getTranslation('enterStoreName', language)}
                 placeholderTextColor="#9ca3af"
-                value={storeName}
-                onChangeText={setStoreName}
-                autoCapitalize="words"
               />
             </View>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Address (Optional)</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{getTranslation('description', language)}</Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="Enter store address"
+                style={[styles.input, styles.textArea]}
+                value={newStore.description}
+                onChangeText={(text) => setNewStore({...newStore, description: text})}
+                placeholder={getTranslation('enterStoreDescription', language)}
                 placeholderTextColor="#9ca3af"
-                value={storeAddress}
-                onChangeText={setStoreAddress}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{getTranslation('address', language)}</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={newStore.address}
+                onChangeText={(text) => setNewStore({...newStore, address: text})}
+                placeholder={getTranslation('enterStoreAddress', language)}
+                placeholderTextColor="#9ca3af"
                 multiline
                 numberOfLines={2}
               />
             </View>
-            
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setCreateStoreModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={createStore}
-              >
-                <Text style={styles.confirmButtonText}>Create Store</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-      
-      {/* Worker Assignment Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Assign Worker</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <MaterialIcons name="close" size={24} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-            
-            <Text style={styles.modalSubtitle}>
-              Assign a worker to {selectedStore?.name}
-            </Text>
-            
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Worker Email</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{getTranslation('phone', language)}</Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="Enter worker's email address"
+                style={styles.input}
+                value={newStore.phone}
+                onChangeText={(text) => setNewStore({...newStore, phone: text})}
+                placeholder={getTranslation('enterPhoneNumber', language)}
                 placeholderTextColor="#9ca3af"
-                value={workerEmail}
-                onChangeText={setWorkerEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
+                keyboardType="phone-pad"
               />
             </View>
-            
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={styles.confirmButton}
-                onPress={assignWorker}
-              >
-                <Text style={styles.confirmButtonText}>Assign</Text>
-              </TouchableOpacity>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>{getTranslation('email', language)}</Text>
+              <TextInput
+                style={styles.input}
+                value={newStore.email}
+                onChangeText={(text) => setNewStore({...newStore, email: text})}
+                placeholder={getTranslation('enterEmailAddress', language)}
+                placeholderTextColor="#9ca3af"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
             </View>
           </View>
-        </KeyboardAvoidingView>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowAddModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleAddStore}
+            >
+              <Text style={styles.saveButtonText}>{getTranslation('createStore', language)}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
-}
+} 
+// Add this button in your store management UI
 
 const styles = StyleSheet.create({
   container: {
@@ -461,233 +472,201 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6b7280',
   },
+  header: {
+    padding: 20,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
   listContainer: {
     padding: 16,
   },
-  storeCard: {
+  storeItem: {
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 1,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-  },
-  storeHeader: {
-    marginBottom: 16,
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    elevation: 3,
   },
   storeInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  storeIcon: {
+    marginRight: 12,
+    marginTop: 2,
   },
   storeDetails: {
-    marginLeft: 12,
     flex: 1,
   },
   storeName: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#1f2937',
+    marginBottom: 4,
+  },
+  storeDescription: {
+    fontSize: 14,
+    color: '#6b7280',
     marginBottom: 4,
   },
   storeAddress: {
     fontSize: 14,
     color: '#6b7280',
   },
-  workerSection: {
+  storeActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-    paddingTop: 16,
+    borderTopColor: '#e5e7eb',
+    paddingTop: 12,
   },
-  workerLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  workerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  workerDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  workerEmail: {
-    fontSize: 16,
-    color: '#059669',
-    marginLeft: 8,
-    fontWeight: '500',
-  },
-  removeButton: {
+  actionButton: {
+    marginLeft: 16,
     padding: 8,
-  },
-  assignButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1f2937',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  assignButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingTop: 64,
   },
-  emptyText: {
-    fontSize: 18,
+  emptyTitle: {
+    fontSize: 20,
     fontWeight: '600',
     color: '#374151',
     marginTop: 16,
     marginBottom: 8,
   },
-  emptySubtext: {
-    fontSize: 14,
+  assignButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  emptyDescription: {
+    fontSize: 16,
     color: '#6b7280',
     textAlign: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 24,
+    lineHeight: 24,
   },
-  createStoreButton: {
+  addButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    backgroundColor: '#2563eb',
+    borderRadius: 30,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  createStoreButtonText: {
+  addButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    backgroundColor: '#1f2937',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  modalOverlay: {
+  modalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
     backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 24,
-    margin: 20,
-    width: '90%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 10,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#1f2937',
   },
   closeButton: {
     padding: 4,
   },
-  modalSubtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
+  modalContent: {
+    flex: 1,
+    padding: 20,
   },
-  inputContainer: {
-    marginBottom: 24,
+  inputGroup: {
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#374151',
     marginBottom: 8,
   },
-  textInput: {
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  input: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
     color: '#1f2937',
-    backgroundColor: '#f9fafb',
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginRight: 8,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#6b7280',
-    textAlign: 'center',
   },
-  confirmButton: {
+  saveButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    backgroundColor: '#1f2937',
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginLeft: 8,
   },
-  confirmButtonText: {
+  saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
-    textAlign: 'center',
   },
 });

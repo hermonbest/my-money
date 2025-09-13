@@ -209,6 +209,39 @@ class OfflineManager {
     }
   }
 
+  // Debug function to inspect AsyncStorage contents
+  async debugAsyncStorage() {
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const offlineKeys = allKeys.filter(key => key.startsWith('offline_'));
+      
+      console.log('🔍 AsyncStorage Debug:');
+      console.log('  - Total keys:', allKeys.length);
+      console.log('  - Offline keys:', offlineKeys.length);
+      
+      if (offlineKeys.length > 0) {
+        console.log('  - Offline keys list:', offlineKeys);
+        
+        // Show sample data for each key
+        for (const key of offlineKeys.slice(0, 5)) { // Limit to first 5 for brevity
+          try {
+            const value = await AsyncStorage.getItem(key);
+            const parsed = JSON.parse(value);
+            console.log(`    ${key}:`, {
+              dataLength: Array.isArray(parsed.data) ? parsed.data.length : 'not array',
+              timestamp: parsed.timestamp,
+              synced: parsed.synced
+            });
+          } catch (parseError) {
+            console.log(`    ${key}: (parse error)`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error debugging AsyncStorage:', error);
+    }
+  }
+
   // Clear all offline data
   async clearOfflineData() {
     try {

@@ -45,6 +45,7 @@ export default function ExpensesScreen({ navigation }) {
         throw new Error('User not authenticated');
       }
 
+
       // Use offline data service for expenses
       const storeId = selectedStore?.id;
       const data = await offlineDataService.getExpenses(storeId, user.id, userRole);
@@ -176,7 +177,13 @@ export default function ExpensesScreen({ navigation }) {
       </Text>
       <TouchableOpacity
         style={styles.addFirstButton}
-        onPress={() => navigation && navigation.navigate ? navigation.navigate("AddExpenseScreen") : console.log('Navigation not available')}
+        onPress={() => {
+          if (navigation?.navigate) {
+            navigation.navigate('AddExpenseScreen');
+          } else {
+            console.log('Navigation not available');
+          }
+        }}
       >
         <MaterialIcons name="add" size={20} color="#ffffff" />
         <Text style={styles.addFirstButtonText}>{getTranslation('recordFirstExpenseButton', language)}</Text>
@@ -261,7 +268,11 @@ export default function ExpensesScreen({ navigation }) {
               Alert.alert(getTranslation('accessDenied', language), getTranslation('workersCannotAddExpenses', language));
               return;
             }
-            navigation && navigation.navigate ? navigation.navigate("AddExpenseScreen") : console.log('Navigation not available');
+            if (navigation?.navigate) {
+              navigation.navigate('AddExpenseScreen');
+            } else {
+              console.log('Navigation not available');
+            }
           }}
         >
           <MaterialIcons name="add" size={24} color="#ffffff" />

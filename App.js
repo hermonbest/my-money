@@ -16,7 +16,7 @@ import { dataPreloader } from "./utils/DataPreloader";
 // Import components
 import ErrorBoundary from "./components/ErrorBoundary";
 import SyncStatusIndicator from "./components/SyncStatusIndicator";
-import { StoreProvider } from "./contexts/StoreContext";
+import { StoreProvider } from './contexts/StoreContext';
 import { LanguageProvider } from "./contexts/LanguageContext";
 
 // Import screens
@@ -46,6 +46,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
+
+  // StoreContext sync will be handled inside the provider
 
   // Attach network interceptor to offline manager
   useEffect(() => {
@@ -136,6 +138,7 @@ export default function App() {
         
         if (profile?.role) {
           setUserRole(profile.role);
+          // Role sync handled by StoreContext automatically
           setIsAuthenticated(true);
           setNeedsProfileSetup(false);
           
@@ -170,6 +173,8 @@ export default function App() {
             
             if (profile?.role) {
               setUserRole(profile.role);
+              // Sync with StoreContext
+              if (syncUserRole) syncUserRole(profile.role);
               setIsAuthenticated(true);
               setNeedsProfileSetup(false);
               
@@ -290,6 +295,7 @@ export default function App() {
         if (profile?.role) {
           console.log('Auth state change - setting user role to:', profile.role);
           setUserRole(profile.role);
+          // Role sync handled by StoreContext automatically
           setIsAuthenticated(true);
           setNeedsProfileSetup(false);
           
@@ -330,6 +336,8 @@ export default function App() {
               if (!profileError && newProfile) {
                 console.log('✅ Worker profile created automatically:', newProfile);
                 setUserRole('worker');
+                // Sync with StoreContext
+                if (syncUserRole) syncUserRole('worker');
                 setIsAuthenticated(true);
                 setNeedsProfileSetup(false);
                 

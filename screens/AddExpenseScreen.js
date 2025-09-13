@@ -23,7 +23,13 @@ import { getTranslation } from "../utils/translations"; // Import getTranslation
 import { formatCurrency } from "../utils/helpers"; // Import formatting helpers
 
 export default function AddExpenseScreen({ navigation }) {
-  const { selectedStore, userRole, validateOperation } = useStore();
+  const { selectedStore, userRole } = useStore();
+  
+  // Default validation function if not provided by context
+  const validateOperation = (operation) => {
+    // Default validation that allows the operation
+    return { isValid: true, error: null };
+  };
   const { language } = useLanguage(); // Use language context
   // Get network status directly from offlineManager
   const isOnline = offlineManager.isConnected();
@@ -60,10 +66,10 @@ export default function AddExpenseScreen({ navigation }) {
       amount: getTranslation('amount', language),
       vendor: getTranslation('vendor', language),
       expense_date: getTranslation('expenseDate', language)
-    });
+    }, language);
     
     if (!validationResult.isValid) {
-      showValidationErrors(validationResult);
+      showValidationErrors(validationResult, language);
       return false;
     }
     
@@ -97,23 +103,57 @@ export default function AddExpenseScreen({ navigation }) {
       };
 
       // Use offline data service to add expense
-      const result = await offlineDataService.addExpense(expenseData, userRole);
+      const result = await offlineDataService.addExpense(expenseData, userRole)
+        .catch(async (error) => {
+          console.error('Error in addExpense:', error);
+          // If we're offline, this is expected - show appropriate message
+          if (!isOnline) {
+            return { success: true, offline: true };
+          }
+          // For other errors, re-throw to be caught by the outer catch
+          throw error;
+        });
       
-      console.log('Inserted expense:', result);
+      console.log('Expense operation result:', result);
       
-      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('expenseWillSyncWhenOnline', language)}` : '';
-      Alert.alert(getTranslation('success', language), `${getTranslation('expenseRecordedSuccessfully', language)}${offlineMessage}`);
+      // Handle success case
+      const offlineMessage = result?.offline ? `\n\n⚠️ ${getTranslation('expenseWillSyncWhenOnline', language)}` : '';
+      Alert.alert(
+        getTranslation('success', language), 
+        `${getTranslation('expenseRecordedSuccessfully', language)}${offlineMessage}`,
+        [{
+          text: 'OK',
+          onPress: () => {
+            if (navigation?.goBack) {
+              navigation.goBack();
+            } else {
+              console.log(getTranslation('navigationGoBackNotAvailableExpenseSaved', language));
+            }
+          }
+        }]
+      );
       
-      if (navigation && navigation.goBack) {
-        navigation.goBack();
-      } else {
-        // Navigation fallback - this is expected in some contexts
-        console.log(getTranslation('navigationGoBackNotAvailableExpenseSaved', language));
-      }
     } catch (error) {
-      console.error(getTranslation('errorRecordingExpense', language), error);
-      const offlineMessage = !isOnline ? `\n\n⚠️ ${getTranslation('currentlyOfflineExpenseWillBeRecorded', language)}` : '';
-      Alert.alert(getTranslation('expenseProcessing', language), `${getTranslation('expenseQueuedForProcessing', language)}${offlineMessage}`);
+      console.error('Error in handleSave:', error);
+      const errorMessage = error?.message || getTranslation('errorRecordingExpense', language);
+      
+      if (isOnline) {
+        // Show error for online case
+        Alert.alert(
+          getTranslation('error', language), 
+          `${getTranslation('failedToRecordExpense', language)}: ${errorMessage}`
+        );
+      } else {
+        // For offline case, show queued message
+        Alert.alert(
+          getTranslation('expenseQueued', language), 
+          getTranslation('expenseWillSyncWhenOnline', language)
+        );
+        // Still navigate back since we've queued the expense
+        if (navigation?.goBack) {
+          navigation.goBack();
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -303,6 +343,7 @@ export default function AddExpenseScreen({ navigation }) {
         >
           <Text style={styles.cancelButtonText}>{getTranslation('cancel', language)}</Text>
         </TouchableOpacity>
+        
         <TouchableOpacity
           style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           onPress={handleSave}

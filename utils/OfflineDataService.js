@@ -9,6 +9,42 @@ const generateCacheKey = (dataType, storeId, userId, userRole) => {
   return `${dataType}_${storeId || userId}_${effectiveUserRole}`;
 };
 
+// Helper function to get all possible cache keys for data retrieval
+const getAllPossibleCacheKeys = (dataType, storeId, userId, userRole) => {
+  const effectiveUserRole = userRole || 'worker';
+  const keys = [];
+  
+  // Add store-based key if storeId exists
+  if (storeId) {
+    keys.push(`${dataType}_${storeId}_${effectiveUserRole}`);
+  }
+  
+  // Add user-based key as fallback
+  keys.push(`${dataType}_${userId}_${effectiveUserRole}`);
+  
+  // Remove duplicates
+  return [...new Set(keys)];
+};
+
+// Helper function to try retrieving data from multiple cache keys
+const getCachedDataWithFallback = async (dataType, storeId, userId, userRole) => {
+  const possibleKeys = getAllPossibleCacheKeys(dataType, storeId, userId, userRole);
+  
+  for (const key of possibleKeys) {
+    try {
+      const data = await offlineManager.getLocalData(key);
+      if (data && data.length > 0) {
+        return data;
+      }
+    } catch (error) {
+      // Continue to next key if this one fails
+      continue;
+    }
+  }
+  
+  return [];
+};
+
 class OfflineDataService {
   // Inventory operations
   async getInventory(storeId, userId, userRole) {
@@ -32,7 +68,7 @@ class OfflineDataService {
         if (error) {
           console.warn('⚠️ Online inventory fetch failed, trying cached data:', error.message);
           // Try cached data as fallback
-          const cachedData = await offlineManager.getLocalData(cacheKey);
+          const cachedData = await getCachedDataWithFallback('inventory', storeId, userId, userRole);
           return cachedData || [];
         }
         
@@ -41,7 +77,7 @@ class OfflineDataService {
         return data || [];
       } else {
         // Return cached data when offline
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('inventory', storeId, userId, userRole);
         return cachedData || [];
       }
     } catch (error) {
@@ -49,7 +85,7 @@ class OfflineDataService {
       
       // If online fails, try to return cached data
       try {
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('inventory', storeId, userId, userRole);
         return cachedData || [];
       } catch (cacheError) {
         console.error('Error accessing cached inventory:', cacheError);
@@ -329,7 +365,7 @@ class OfflineDataService {
         if (error) {
           console.warn('⚠️ Online sales fetch failed, trying cached data:', error.message);
           // Try cached data as fallback
-          const cachedData = await offlineManager.getLocalData(cacheKey);
+          const cachedData = await getCachedDataWithFallback('sales', storeId, userId, userRole);
           return cachedData || [];
         }
         
@@ -338,7 +374,7 @@ class OfflineDataService {
         return data || [];
       } else {
         // Return cached data when offline
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('sales', storeId, userId, userRole);
         return cachedData || [];
       }
     } catch (error) {
@@ -346,7 +382,7 @@ class OfflineDataService {
       
       // If online fails, try to return cached data
       try {
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('sales', storeId, userId, userRole);
         return cachedData || [];
       } catch (cacheError) {
         console.error('Error accessing cached sales:', cacheError);
@@ -840,6 +876,7 @@ class OfflineDataService {
   async getExpenses(storeId, userId, userRole) {
     const cacheKey = generateCacheKey('expenses', storeId, userId, userRole);
     
+    
     try {
       // Try to get data online first
       if (offlineManager.isConnected()) {
@@ -856,7 +893,7 @@ class OfflineDataService {
         if (error) {
           console.warn('⚠️ Online expenses fetch failed, trying cached data:', error.message);
           // Try cached data as fallback
-          const cachedData = await offlineManager.getLocalData(cacheKey);
+          const cachedData = await getCachedDataWithFallback('expenses', storeId, userId, userRole);
           return cachedData || [];
         }
         
@@ -865,7 +902,7 @@ class OfflineDataService {
         return data || [];
       } else {
         // Return cached data when offline
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('expenses', storeId, userId, userRole);
         return cachedData || [];
       }
     } catch (error) {
@@ -873,7 +910,7 @@ class OfflineDataService {
       
       // If online fails, try to return cached data
       try {
-        const cachedData = await offlineManager.getLocalData(cacheKey);
+        const cachedData = await getCachedDataWithFallback('expenses', storeId, userId, userRole);
         return cachedData || [];
       } catch (cacheError) {
         console.error('Error accessing cached expenses:', cacheError);

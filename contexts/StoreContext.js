@@ -184,10 +184,19 @@ export const StoreProvider = ({ children }) => {
       }
 
       console.log('🔍 StoreContext: Profile loaded:', profile);
-      setUserRole(profile.role || 'worker'); // Default to worker if no role
+      
+      // Ensure we don't set role if it's null to avoid overriding App.js
+      if (profile && profile.role) {
+        setUserRole(profile.role);
+      } else {
+        console.warn('⚠️ StoreContext: Profile has no role, keeping current userRole');
+        // Don't override userRole if profile.role is null/undefined
+      }
 
-      // Load stores based on role
-      if ((profile.role || 'worker') === 'owner') {
+      // Load stores based on role (use existing userRole if profile.role is null)
+      const effectiveRole = profile?.role || userRole || 'worker';
+      
+      if (effectiveRole === 'owner') {
         const { data: ownedStores, error: storesError } = await supabase
           .from('stores')
           .select('*')
@@ -200,9 +209,9 @@ export const StoreProvider = ({ children }) => {
         if (ownedStores && ownedStores.length > 0) {
           setSelectedStore(ownedStores[0]);
         }
-      } else if ((profile.role || 'worker') === 'worker') {
+      } else if (effectiveRole === 'worker') {
         // For workers, get their assigned store directly from their profile
-        if (profile.store_id) {
+        if (profile && profile.store_id) {
           const { data: assignedStore, error: storeError } = await supabase
             .from('stores')
             .select('*')
@@ -223,7 +232,7 @@ export const StoreProvider = ({ children }) => {
             setSelectedStore(null);
           }
         } else {
-          console.warn('⚠️ No store assigned to worker yet');
+          console.warn('⚠️ No store assigned to worker yet or profile is null');
           setStores([]);
           setSelectedStore(null);
         }
@@ -247,6 +256,12 @@ export const StoreProvider = ({ children }) => {
     setSelectedStore(store);
   };
 
+  // Method to sync userRole from App.js
+  const syncUserRole = (role) => {
+    console.log('🔄 StoreContext: Syncing userRole from App.js:', role);
+    setUserRole(role);
+  };
+
   const refreshStores = async () => {
     await loadUserProfile();
   };
@@ -264,7 +279,7 @@ export const StoreProvider = ({ children }) => {
         // Add delay to let App.js handle profile creation first
         setTimeout(async () => {
           await loadUserProfile();
-        }, 1000);
+        }, 1500); // Increased delay to ensure App.js completes first
       } else if (event === 'SIGNED_OUT') {
         console.log('StoreContext - User signed out, clearing state...');
         setUserRole(null);
@@ -286,8 +301,10 @@ export const StoreProvider = ({ children }) => {
     selectedStore,
     userRole,
     loading,
-    isAuthenticated, // Include auth state in context
+    isAuthenticated,
     selectStore,
+    syncUserRole, // Expose sync method
+    loadUserProfile,
     refreshStores,
   };
 

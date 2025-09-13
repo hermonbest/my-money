@@ -205,8 +205,8 @@ export const getUserProfile = async (userId) => {
         console.log('🔍 Using cached profile as fallback');
         return JSON.parse(cachedProfile);
       }
-      // Return null but ensure we don't crash on role access
-      return { role: null };
+      // Return a safe object structure
+      return { role: null, profile: null };
     } else {
       // Offline: use cached profile if available
       if (cachedProfile) {
@@ -215,7 +215,8 @@ export const getUserProfile = async (userId) => {
       }
       
       console.log('🔍 No cached profile available offline');
-      return null;
+      // Return a safe object structure
+      return { role: null, profile: null };
     }
   } catch (error) {
     console.error('❌ Error loading profile:', error);
@@ -231,7 +232,8 @@ export const getUserProfile = async (userId) => {
       console.error('❌ Error loading cached profile:', cacheError);
     }
     
-    return { role: null };
+    // Return a safe object structure
+    return { role: null, profile: null };
   }
 };
 

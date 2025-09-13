@@ -142,6 +142,102 @@ export const validateForm = (formData, rules, language) => {
   return true;
 };
 
+/**
+ * Schema-based validation for different data types
+ * @param {string} schemaType - Type of schema to validate against
+ * @param {Object} data - Data to validate  
+ * @param {Object} fieldLabels - Human-readable field labels for error messages
+ * @param {string} language - Current language
+ * @returns {Object} - Validation result with isValid boolean and errors array
+ */
+export const validateWithSchema = (schemaType, data, fieldLabels = {}, language = 'en') => {
+  const errors = [];
+  
+  switch (schemaType) {
+    case 'expense':
+      // Required fields for expenses
+      if (!data.title || data.title.trim() === '') {
+        errors.push(`${fieldLabels.title || 'Title'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      if (!data.category || data.category.trim() === '') {
+        errors.push(`${fieldLabels.category || 'Category'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      if (!data.amount || data.amount.toString().trim() === '') {
+        errors.push(`${fieldLabels.amount || 'Amount'} ${getTranslation('required', language).toLowerCase()}`);
+      } else {
+        const amount = parseFloat(data.amount);
+        if (isNaN(amount) || amount <= 0) {
+          errors.push(`${fieldLabels.amount || 'Amount'} ${getTranslation('invalidAmount', language).toLowerCase()}`);
+        }
+      }
+      if (!data.expense_date || data.expense_date.trim() === '') {
+        errors.push(`${fieldLabels.expense_date || 'Expense Date'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      break;
+      
+    case 'inventory':
+      // Required fields for inventory items
+      if (!data.name || data.name.trim() === '') {
+        errors.push(`${fieldLabels.name || 'Item Name'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      if (!data.cost_price || data.cost_price.toString().trim() === '') {
+        errors.push(`${fieldLabels.cost_price || 'Cost Price'} ${getTranslation('required', language).toLowerCase()}`);
+      } else {
+        const costPrice = parseFloat(data.cost_price);
+        if (isNaN(costPrice) || costPrice < 0) {
+          errors.push(`${fieldLabels.cost_price || 'Cost Price'} ${getTranslation('invalidAmount', language).toLowerCase()}`);
+        }
+      }
+      if (!data.selling_price || data.selling_price.toString().trim() === '') {
+        errors.push(`${fieldLabels.selling_price || 'Selling Price'} ${getTranslation('required', language).toLowerCase()}`);
+      } else {
+        const sellingPrice = parseFloat(data.selling_price);
+        if (isNaN(sellingPrice) || sellingPrice < 0) {
+          errors.push(`${fieldLabels.selling_price || 'Selling Price'} ${getTranslation('invalidAmount', language).toLowerCase()}`);
+        }
+      }
+      if (!data.quantity || data.quantity.toString().trim() === '') {
+        errors.push(`${fieldLabels.quantity || 'Quantity'} ${getTranslation('required', language).toLowerCase()}`);
+      } else {
+        const quantity = parseFloat(data.quantity);
+        if (isNaN(quantity) || quantity < 0) {
+          errors.push(`${fieldLabels.quantity || 'Quantity'} ${getTranslation('invalidQuantity', language).toLowerCase()}`);
+        }
+      }
+      break;
+      
+    case 'sale':
+      // Required fields for sales
+      if (!data.customer_name || data.customer_name.trim() === '') {
+        errors.push(`${fieldLabels.customer_name || 'Customer Name'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      if (!data.payment_method || data.payment_method.trim() === '') {
+        errors.push(`${fieldLabels.payment_method || 'Payment Method'} ${getTranslation('required', language).toLowerCase()}`);
+      }
+      break;
+      
+    default:
+      console.warn(`Unknown schema type: ${schemaType}`);
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors: errors
+  };
+};
+
+/**
+ * Show validation errors to the user
+ * @param {Object} validationResult - Result from validateWithSchema
+ * @param {string} language - Current language
+ */
+export const showValidationErrors = (validationResult, language = 'en') => {
+  if (!validationResult.isValid && validationResult.errors.length > 0) {
+    const errorMessage = validationResult.errors.join('\n');
+    Alert.alert(getTranslation('validationError', language), errorMessage);
+  }
+};
+
 export default {
   validateRequired,
   validateNumber,
@@ -149,5 +245,7 @@ export default {
   validateEmail,
   validatePhone,
   validatePassword,
-  validateForm
+  validateForm,
+  validateWithSchema,
+  showValidationErrors
 };
